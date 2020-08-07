@@ -1,1 +1,0 @@
-# protease-gcnn-pytorch
