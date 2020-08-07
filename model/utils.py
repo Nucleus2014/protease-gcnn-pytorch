@@ -1,0 +1,242 @@
+import numpy as np
+import pickle as pkl
+import networkx as nx
+from scipy.sparse.linalg.eigen.arpack import eigsh
+import sys
+import scipy.sparse as sp
+import os
+import torch
+import logging
+
+def encode_onehot(labels):
+    classes = set(labels)
+    classes_dict = {c: np.identity(len(classes))[i, :] for i, c in
+                    enumerate(classes)}
+    labels_onehot = np.array(list(map(classes_dict.get, labels)),
+                             dtype=np.int32)
+    return labels_onehot
+
+def parse_index_file(filename):
+    """Parse index file."""
+    index = []
+    for line in open(filename):
+        index.append(int(line.strip()))
+    return index
+
+def sample_mask(idx, l):
+    """Create mask."""
+    mask = np.zeros(l)
+    mask[idx] = 1
+    return np.array(mask, dtype=np.bool)
+    
+def get_batch_iterator(mask, batch_size):
+    # Batch size iterator, returns list of masks.
+    train_indices = [i for (i,boolean) in enumerate(mask) if boolean == True]
+    np.random.shuffle(train_indices)
+    mask_ls, i = [], 0
+    while i < len(train_indices):
+        m = np.zeros(shape=mask.shape, dtype=np.bool)
+        if i + batch_size <= len(train_indices):
+            m[train_indices[i:i+batch_size]] = True
+            mask_ls.append(m)
+        else:
+            m[train_indices[i:]] = True
+            mask_ls.append(m)
+        i += batch_size
+    return mask_ls
+
+def load_data(dataset_str, is_test=None, norm_type=False):
+    protease = dataset_str.replace("protease_","")
+    protease = protease.split("_selector")[0]
+    cwd = os.getcwd()
+    #os.chdir("..")
+#    print(cwd)
+    names = ['x', 'y', 'graph', 'sequences', 'labelorder']
+    objects = []
+    for i in range(len(names)):
+        with open("../protease-gcnn/Data/ind.{}.{}".format(dataset_str, names[i]), 'rb') as f:
+            if sys.version_info > (3, 0):
+                objects.append(pkl.load(f, encoding='latin1'))
+            else:
+                objects.append(pkl.load(f))
+
+    features, y_arr, adj_ls, sequences, labelorder = tuple(objects)
+    #os.chdir(cwd)
+    proteases = [protease for x in sequences]
+
+    # turn edges into nodes
+    # node feature matrix
+
+
+    # Split all datasets into testing, training, and validation. The split of this data is fixed for each dataset
+    # because the numpy seed is fixed, currently the breakdown is train: 60, validation: 10, test: 30
+    idx = [y_ind for y_ind in range(y_arr.shape[0])]
+    np.random.shuffle(idx)
+    cutoff_1 = int(6*len(idx)/10)
+    cutoff_2 = int(7*len(idx)/10)
+    idx_train = idx[:cutoff_1]
+    idx_val = idx[cutoff_1:cutoff_2]
+    idx_test = idx[cutoff_2:]
+    idx_train, idx_val, idx_test = np.sort(idx_train), np.sort(idx_val), np.sort(idx_test)
+
+    # make logical indices (they are the size BATCH)
+    train_mask = sample_mask(idx_train, y_arr.shape[0])
+    val_mask = sample_mask(idx_val, y_arr.shape[0])
+    test_mask = sample_mask(idx_test, y_arr.shape[0])
+
+    if is_test != None:
+        test_idx_reorder = parse_index_file("../protease-gcnn/Data/ind.{}.test.index".format(is_test))
+        test_idx_range = np.sort(test_idx_reorder)
+        test_mask = np.zeros(len(train_mask), dtype=np.bool)
+        test_mask[test_idx_range] = True
+        # make train test split
+        tmp_mask = test_mask.copy()
+        train_mask = np.array([(not idx) for idx in test_mask],dtype=np.bool)
+        
+        train_ind = set(range(len(train_mask))) - set(test_idx_range)
+        val_ind = np.random.choice(list(train_ind), int(len(train_mask)*0.1),replace=False)
+        
+        
+#        tmp = []
+#        for i in range(0,len(labelorder)):
+#            tmp.append(np.where(np.argmax(y_arr,axis=1)==i)[0])
+#
+#        new_tmp = [[],[],[]]
+#        for i in range(0,len(tmp)):
+#            for j in range(0,len(tmp[i])):
+#                if train_mask[tmp[i][j]] == True:
+#                    new_tmp[i].append(tmp[i][j])
+#
+#        val_ind = np.array([],dtype="int64")
+#        for k in range(0,len(tmp)):
+#            val_ind = np.append(val_ind, np.random.choice(new_tmp[k],size=int(0.07/2.5*sum(train_mask)), replace=False))
+
+        val_mask = np.zeros(len(train_mask), dtype=np.bool)
+        val_mask[val_ind] = True
+        tmp_mask[val_ind] = True
+        train_mask = np.array([(not idx) for idx in tmp_mask], dtype=np.bool)
+
+#        tmp_mask[val_ind] = True
+
+#    features, adj_ls = rebuild_mat(features,adj_ls)
+    adj_ls = normalize(adj_ls, norm_type)
+    
+    features = torch.FloatTensor(np.array(features))
+    y_arr = torch.LongTensor(y_arr)
+    adj_ls = torch.FloatTensor(np.array(adj_ls))
+
+    return adj_ls, features, y_arr, sequences, proteases, labelorder, train_mask, val_mask, test_mask
+
+
+def normalize(mx, norm_type=False): #norm_type = true if chebyshev
+    # apply partition function to mx #or mean field theory
+#    mx[:,:,:,1] = mx[:,:,:,1] * (-1)
+    exp_mat = np.exp(-mx)
+    par = exp_mat.sum(1).sum(1)
+    for b in range(mx.shape[0]):
+        for m in range(mx.shape[3]):
+            mx[b][:,:,m] = exp_mat[b,:,:,m] / par[b,m] # partition probability
+            if norm_type == False:
+                mx[b][:,:,m] += np.eye(mx.shape[1])
+    rowsum = np.array(mx.sum(1)) # Here starts to multiply -1/2 degree matrix on both sides of transformed adjacency matrix
+    r_inv = np.power(rowsum, -0.5)
+    r_inv[np.isinf(r_inv)] = 0.
+    for b in range(mx.shape[0]):
+        for m in range(mx.shape[3]):
+            r_mat_inv = sp.diags(r_inv[b,:,m])
+            mx[b,:,:,m] = r_mat_inv * mx[b,:,:,m] * r_mat_inv
+            if norm_type == True:
+                mx[b,:,:,m] = np.identity(mx.shape[1]) - mx[b,:,:,m] # normalized laplacian
+    return mx
+
+
+def accuracy(output, labels):
+    preds = np.argmax(output.cpu().detach().numpy(),axis=1)
+    correct = torch.from_numpy(preds).eq(labels).double()
+#    correct = np.sum(preds == labels)
+    correct = correct.sum()
+    return correct / labels.size()[0]
+
+
+def sparse_mx_to_torch_sparse_tensor(sparse_mx):
+    """Convert a scipy sparse matrix to a torch sparse tensor."""
+    sparse_mx = sparse_mx.tocoo().astype(np.float32)
+    indices = torch.from_numpy(
+        np.vstack((sparse_mx.row, sparse_mx.col)).astype(np.int64))
+    values = torch.from_numpy(sparse_mx.data)
+    shape = torch.Size(sparse_mx.shape)
+    return torch.sparse.FloatTensor(indices, values, shape)
+
+class RunningAverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self, momentum=0.99):
+        self.momentum = momentum
+        self.reset()
+
+    def reset(self):
+        self.val = None
+        self.avg = 0
+
+    def update(self, val):
+        if self.val is None:
+            self.avg = val
+        else:
+            self.avg = self.avg * self.momentum + val * (1 - self.momentum)
+        self.val = val
+        
+def get_logger(logpath, filepath, package_files=[], displaying=True, saving=True, debug=False):
+    logger = logging.getLogger()
+    if debug:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+    logger.setLevel(level)
+    if saving:
+        info_file_handler = logging.FileHandler(logpath, mode="a")
+        info_file_handler.setLevel(level)
+        logger.addHandler(info_file_handler)
+    if displaying:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(level)
+        logger.addHandler(console_handler)
+    logger.info(filepath)
+    with open(filepath, "r") as f:
+        logger.info(f.read())
+
+    for f in package_files:
+        logger.info(f)
+        with open(f, "r") as package_f:
+            logger.info(package_f.read())
+
+    return logger
+
+def makedirs(dirname):
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+        
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+    
+def chebyshev(x, adj, max_degree):
+    out = torch.zeros(x.shape[0],x.shape[1],x.shape[2],max_degree)
+    for batch in range(out.shape[0]):
+        eigval_max = torch.from_numpy(np.linalg.eigvals(adj[batch,:,:].detach().numpy()).astype(float))
+        til_adj = 2 * adj[batch,:,:] / eigval_max - torch.eye(adj.shape[1])
+        out[batch,:,:,:] = torch.from_numpy(cheby(x[batch,:,:].detach().numpy(), til_adj.detach().numpy(), max_degree))
+    return out
+
+def cheby(x, adj, mdeg):
+    out = np.zeros((x.shape[0],x.shape[1],mdeg))
+    for i in range(mdeg):
+        if i == 0:
+            recur_1 = x
+            out[:,:,0] = recur_1
+        elif i == 1:
+            recur_2 = np.matmul(adj,x)
+            out[:,:,1] = recur_2
+        else:
+            recur = 2 * np.matmul(adj, recur_2) - recur_1
+            recur_2 = recur
+            recur_1 = recur_2
+    return out
+    
