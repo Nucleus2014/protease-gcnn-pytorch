@@ -45,7 +45,7 @@ def get_batch_iterator(mask, batch_size):
         i += batch_size
     return mask_ls
 
-def load_data(dataset_str, is_test=None, norm_type=False):
+def load_data(dataset_str, is_test=None, norm_type=False, noenergy=False, cv=7):
     protease = dataset_str.replace("protease_","")
     protease = protease.split("_selector")[0]
     cwd = os.getcwd()
@@ -54,7 +54,7 @@ def load_data(dataset_str, is_test=None, norm_type=False):
     names = ['x', 'y', 'graph', 'sequences', 'labelorder']
     objects = []
     for i in range(len(names)):
-        with open("../protease-gcnn/Data/ind.{}.{}".format(dataset_str, names[i]), 'rb') as f:
+        with open("../data/ind.{}.{}".format(dataset_str, names[i]), 'rb') as f:
             if sys.version_info > (3, 0):
                 objects.append(pkl.load(f, encoding='latin1'))
             else:
@@ -67,25 +67,23 @@ def load_data(dataset_str, is_test=None, norm_type=False):
     # turn edges into nodes
     # node feature matrix
 
-
     # Split all datasets into testing, training, and validation. The split of this data is fixed for each dataset
     # because the numpy seed is fixed, currently the breakdown is train: 60, validation: 10, test: 30
     idx = [y_ind for y_ind in range(y_arr.shape[0])]
     np.random.shuffle(idx)
-    cutoff_1 = int(6*len(idx)/10)
-    cutoff_2 = int(7*len(idx)/10)
+    cutoff_1 = int((cv-1)*len(idx)/10)
+    cutoff_2 = int(cv*len(idx)/10)
     idx_train = idx[:cutoff_1]
     idx_val = idx[cutoff_1:cutoff_2]
     idx_test = idx[cutoff_2:]
     idx_train, idx_val, idx_test = np.sort(idx_train), np.sort(idx_val), np.sort(idx_test)
-
     # make logical indices (they are the size BATCH)
     train_mask = sample_mask(idx_train, y_arr.shape[0])
     val_mask = sample_mask(idx_val, y_arr.shape[0])
     test_mask = sample_mask(idx_test, y_arr.shape[0])
 
     if is_test != None:
-        test_idx_reorder = parse_index_file("../protease-gcnn/Data/ind.{}.test.index".format(is_test))
+        test_idx_reorder = parse_index_file("../data/ind.{}.test.index".format(is_test))
         test_idx_range = np.sort(test_idx_reorder)
         test_mask = np.zeros(len(train_mask), dtype=np.bool)
         test_mask[test_idx_range] = True
@@ -96,49 +94,47 @@ def load_data(dataset_str, is_test=None, norm_type=False):
         train_ind = set(range(len(train_mask))) - set(test_idx_range)
         val_ind = np.random.choice(list(train_ind), int(len(train_mask)*0.1),replace=False)
         
-        
-#        tmp = []
-#        for i in range(0,len(labelorder)):
-#            tmp.append(np.where(np.argmax(y_arr,axis=1)==i)[0])
-#
-#        new_tmp = [[],[],[]]
-#        for i in range(0,len(tmp)):
-#            for j in range(0,len(tmp[i])):
-#                if train_mask[tmp[i][j]] == True:
-#                    new_tmp[i].append(tmp[i][j])
-#
-#        val_ind = np.array([],dtype="int64")
-#        for k in range(0,len(tmp)):
-#            val_ind = np.append(val_ind, np.random.choice(new_tmp[k],size=int(0.07/2.5*sum(train_mask)), replace=False))
-
         val_mask = np.zeros(len(train_mask), dtype=np.bool)
         val_mask[val_ind] = True
         tmp_mask[val_ind] = True
         train_mask = np.array([(not idx) for idx in tmp_mask], dtype=np.bool)
 
-#        tmp_mask[val_ind] = True
-
+    if cv != 0:
+        idx = np.where(train_mask == True)[0]
+        np.random.shuffle(idx)
+        cv_aux = np.array_split(idx, cv-1)
+        train_mask = [val_mask]
+        for i in cv_aux:
+            train_mask.append(sample_mask(i, y_arr.shape[0]))
+        #train_mask.append(val_mask)
+    else:
+        train_mask = [val_mask, train_mask]
 #    features, adj_ls = rebuild_mat(features,adj_ls)
-    adj_ls = normalize(adj_ls, norm_type)
+    if noenergy == False:
+        features = transform(features,ind='(-8,-1)') #only energy features
+        adj_ls = transform(adj_ls, ind='(0,6)') # only energy features
+
+    adj_ls = normalize(adj_ls)
     
     features = torch.FloatTensor(np.array(features))
     y_arr = torch.LongTensor(y_arr)
     adj_ls = torch.FloatTensor(np.array(adj_ls))
 
-    return adj_ls, features, y_arr, sequences, proteases, labelorder, train_mask, val_mask, test_mask
+    return adj_ls, features, y_arr, sequences, proteases, labelorder, train_mask, test_mask
 
 
-def normalize(mx, norm_type=False): #norm_type = true if chebyshev
-    # apply partition function to mx #or mean field theory
-#    mx[:,:,:,1] = mx[:,:,:,1] * (-1)
-    exp_mat = np.exp(-mx)
-    par = exp_mat.sum(1).sum(1)
+def normalize(mx, norm_type=False): #norm_type = true if chebyshev  
+    # normalize matrix using partition probability because weights * features should avoid features = 0
+    # but distribution range is small
+    # so just do exp(-x) in transformation and then normalize edge using row normalization
+    try:
+        mx = mx.numpy().copy()
+    except AttributeError:
+        pass
     for b in range(mx.shape[0]):
         for m in range(mx.shape[3]):
-            mx[b][:,:,m] = exp_mat[b,:,:,m] / par[b,m] # partition probability
-            if norm_type == False:
-                mx[b][:,:,m] += np.eye(mx.shape[1])
-    rowsum = np.array(mx.sum(1)) # Here starts to multiply -1/2 degree matrix on both sides of transformed adjacency matrix
+            mx[b][:,:,m] += np.eye(mx.shape[1])
+    rowsum = np.array(mx.sum(2)) # Here starts to multiply -1/2 degree matrix on both sides of transformed adjacency matrix
     r_inv = np.power(rowsum, -0.5)
     r_inv[np.isinf(r_inv)] = 0.
     for b in range(mx.shape[0]):
@@ -149,6 +145,20 @@ def normalize(mx, norm_type=False): #norm_type = true if chebyshev
                 mx[b,:,:,m] = np.identity(mx.shape[1]) - mx[b,:,:,m] # normalized laplacian
     return mx
 
+
+def transform(mat, ind = 'all'): # ind saves indices that needs to be transformed, like '(22,29)'
+    """exp(-x) for features"""
+    try:
+        mat = mat.numpy().copy()
+    except AttributeError:
+        pass
+    if ind == 'all':
+        return np.exp(-mat)
+    else:
+        ind_ends = [int(x) for x in ind.strip('()').split(',')]
+        ind_list = np.arange(ind_ends[0],ind_ends[1])
+        mat[...,ind_list] = np.exp(-mat[...,ind_list])
+    return mat
 
 def accuracy(output, labels):
     preds = np.argmax(output.cpu().detach().numpy(),axis=1)

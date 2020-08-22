@@ -37,16 +37,21 @@ parser.add_argument('--weight_decay', type=float, default=5e-4,
                     help='Weight decay (L2 loss on parameters).')
 parser.add_argument('--hidden1', type=int, default=10,
                     help='Number of hidden units for nodes.')
-parser.add_argument('--hidden2', type=int, default=10,help='Number of hidden units for edge as nodes')
+#parser.add_argument('--hidden2', type=int, default=10, help='Number of hidden units for edge as nodes')
+parser.add_argument('--depth', type=int, default=10, help='Number of gcnn layers')
+parser.add_argument('--dim_des',action='store_true',default=False)
+parser.add_argument('--cv', type=int, default=7, help='N-fold cross validation.')
+parser.add_argument('--no_energy', action='store_true', default=False, help='check if no energy features')
 #parser.add_argument('--ngcn', type=str, default='[10,10]',help='Set of number of hidden units for gcn layers')
 #parser.add_argument('--nfull', type=str, default='[]')
 parser.add_argument('--att', type=int, default=30, help='the dimension of weight matrices for key and query')
-#parser.add_argument('--linear', type=int, default=10)
+parser.add_argument('--linear', type=int, default=0)
 parser.add_argument('--dropout', type=float, default=0.1,
                     help='Dropout rate (1 - keep probability).')
-parser.add_argument('--test_dataset',type=str, help = "test datset string")
+parser.add_argument('--test_dataset',type=str, default=None, help = "test datset string")
 parser.add_argument('--dataset',type=str, help='input dataset string')
 parser.add_argument('--model', type = str, default = 'gcn',choices=['gcn','chebyshev'])
+parser.add_argument('--weight', type=str, default='pre',choices=['pre','post'])
 parser.add_argument('--max_degree',type=int, default = 3, help='number of supports')
 parser.add_argument('--batch_size',type=int, default=8)
 parser.add_argument('--save', type=str, default='./experiment1')
@@ -88,114 +93,122 @@ makedirs(args.save)
 logger = get_logger(logpath=os.path.join(args.save, 'logs'), filepath=os.path.abspath(__file__))
 logger.info(args)
 device = torch.device('cuda:' + str(args.gpu) if torch.cuda.is_available() else 'cpu')
-
-## Determine Number of Supports and Assign Model Function
-#if args.model == 'gcn':
-#    num_supports = 1
-#    model_func = GCN
-#elif args.model == 'gcn_cheby':
-#    num_supports = 1 + args.max_degree
-#    model_func = GCN
-#else:
-#    raise ValueError('Invalid argument for model: ' + str(FLAGS.model))
     
 # Load data
 is_cheby = True if args.model == 'chebyshev' else False
 cheby_params = args.max_degree if args.model == 'chebyshev' else None
-
-adj_ls, features, labels, sequences, proteases, labelorder, train_mask, val_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset, norm_type=is_cheby)
+cv_fold = args.cv
+no_energy = True if args.no_energy == True else False
+weight_mode = args.weight # 'pre' or 'post'
+dim_des = args.dim_des
+if args.test_dataset != None:
+    test_dataset = args.test_dataset
+else:
+    if args.save_test == False:
+        test_dataset = args.dataset
+    else:
+        test_dataset = None
+adj_ls, features, labels, sequences, proteases, labelorder, train_mask, test_mask = load_data(args.dataset, is_test=test_dataset, norm_type=is_cheby, cv=cv_fold, noenergy = no_energy)
 
 # Size of Different Sets
-print("|Training| {}, |Validation| {}, |Testing| {}".format(np.sum(train_mask), np.sum(val_mask), np.sum(test_mask)))
-    
+print("|Training| {}, |Validation| {}, |Testing| {}".format(np.sum(train_mask[0:-1], axis=0, dtype=bool), np.sum(train_mask[-1]), np.sum(test_mask)))
+
+batch_size = args.batch_size
+epochs_num = args.epochs
+accumulated_acc = 0
+
 # Model and optimizer
 model = GCN(nnode=features.shape[1],
             nfeat=features.shape[2],
             mfeat=adj_ls.shape[3],
-#            ngcn=args.ngcn,
             hidden1=args.hidden1,
-            hidden2=args.hidden2,
+            linear=args.linear,
+            depth=args.depth,
             natt=args.att, # one layer
-#            nfull=args.nfull,
-#            nhid1=args.hidden1,
-#            nhid2=args.hidden2,
             nclass=labels.shape[1],
             dropout=args.dropout,
+            weight=weight_mode,
+            is_des=dim_des,
             cheby=cheby_params).to(device)
 logger.info(model)
 logger.info('Number of parameters: {}'.format(count_parameters(model)))
-            
+
 #criterion = nn.NLLLoss().to(device)
 criterion = nn.CrossEntropyLoss().to(device)
 
 optimizer = optim.Adam(model.parameters(),lr=args.lr, weight_decay=args.weight_decay)
 
-best_acc = 0
-batch_time_meter = RunningAverageMeter()
-end = time.time()
 print("Total number of forward processes:" + str(args.epochs * args.batch_size))
 
-#batches_per_epoch = int(sum(train_mask) / args.batch_size)
-#print("Batches per epoch is:" + str(batches_per_epoch))
-batch_size = args.batch_size
-epochs_num = args.epochs
-
 if args.save_validation == True:
-    val_df = np.zeros([args.epochs*sum(val_mask),labels.shape[1]])
-#if args.save_test == True:
-#    labels[test_mask].to_csv('test_label.txt')
-if args.save_test == True:
+    val_df = np.zeros([epochs_num * cv_fold,4]) #train_loss, val_loss, train_acc, val_acc
+if args.save_test == True: # save test dataset
     test_index = np.where(test_mask == True)[0]
-#    pkl.dump(test_index, open(os.path.join(args.save,"ind." + args.dataset + ".index"),'wb'))
+    pkl.dump(test_index, open(os.path.join(args.save,"ind." + args.dataset + ".index"),'wb'))
     np.savetxt("ind.{}.test.index".format(args.dataset),test_index, fmt="%d")
 
-#mask = np.array([x or y for (x,y) in zip(train_mask, val_mask)], dtype = np.bool)
-for epoch in range(epochs_num):
-    n = 0
-    for batch_mask in get_batch_iterator(train_mask, batch_size):
-        optimizer.zero_grad()
-        n = n + 1
-        print('this is the {}th batch'.format(n))
-        x = features[batch_mask].to(device)
-        y = labels[batch_mask]
-        y = torch.argmax(y,axis=1).to(device)
-        adj = adj_ls[batch_mask].to(device)
-        model.train()
-        logits = model(x, adj)
-        loss = criterion(logits,y)
-        loss.backward()
-        optimizer.step()
-        train_acc = accuracy(logits, y)
-#        print("train loss is {}".format(loss))
-#        print("train accuracy is {}".format(train_acc))
-        batch_time_meter.update(time.time() - end)
-        end = time.time()
-    with torch.no_grad():
-        #train_acc = accuracy(model, logits, labels[train_mask])
-        model.eval()
-        logits_val = model(features[val_mask], adj_ls[val_mask])
-        loss_val = criterion(logits_val,torch.argmax(labels[val_mask],axis=1))
-        val_acc = accuracy(logits_val, torch.argmax(labels[val_mask],axis=1))
-        print("train accuracy for {0}th epoch is: {1}".format(epoch,train_acc))
-        print("validation accuracy for {0}th epoch is: {1}".format(epoch,val_acc))
-        print("loss is {0}:".format(loss_val))
-        if val_acc > best_acc:
-            if val_acc > train_acc:
-                torch.save({'epoch': epoch,'state_dict': model.state_dict(), 'args': args}, os.path.join(args.save, 'model.pth'))
+# save initialize parameters
+torch.save({'state_dict': model.state_dict()}, os.path.join(args.save, 'temp_hidden_' + str(args.hidden1) + '_linear_' + str(args.linear) + '_lr_'+str(args.lr)+'_wd_'+str(args.weight_decay)+'_bs_'+str(args.batch_size)+'_dt_' + str(args.dropout) + '.pth'))
+
+for fold in range(cv_fold):
+    # load initialized parameters
+    checkpoint = torch.load(os.path.join(args.save, 'temp_hidden_' + str(args.hidden1) + '_linear_' + str(args.linear) + '_lr_'+str(args.lr)+'_wd_'+str(args.weight_decay)+'_bs_'+str(args.batch_size)+ '_dt_' + str(args.dropout) + '.pth'))
+    model.load_state_dict(checkpoint['state_dict'])
+    tmp_mask = train_mask.copy()
+    if args.cv == 0:
+        train_mask_tmp = tmp_mask[-1]
+        val_mask = tmp_mask[0]
+    else:
+        val_mask = tmp_mask.pop(fold)
+        train_mask_tmp = np.sum(tmp_mask, axis=0, dtype=bool)
+
+    best_acc = 0
+    batch_time_meter = RunningAverageMeter()
+    end = time.time()
+    
+    for epoch in range(epochs_num):
+        n = 0
+        for batch_mask in get_batch_iterator(train_mask_tmp, batch_size):
+            optimizer.zero_grad()
+            n = n + 1
+            #print('{0}th fold:: this is the {1}th batch'.format(fold+1, n))
+            x = features[batch_mask].to(device)
+            y = labels[batch_mask]
+            y = torch.argmax(y,axis=1).to(device)
+            adj = adj_ls[batch_mask].to(device)
+            logits = model(x, adj)
+            loss = criterion(logits,y)
+            loss.backward()
+            optimizer.step()
+            train_acc = accuracy(logits, y)
+            batch_time_meter.update(time.time() - end)
+            end = time.time()
+        with torch.no_grad():
+            logits_val = model(features[val_mask], adj_ls[val_mask])
+            loss_val = criterion(logits_val,torch.argmax(labels[val_mask],axis=1))
+            val_acc = accuracy(logits_val, torch.argmax(labels[val_mask],axis=1))
+            if args.save_validation == True:
+                val_df[epoch + epochs_num * fold, :] = np.array([loss, train_acc, loss_val, val_acc])
+            print("{0} fold:: train accuracy for {1}th epoch is: {2}".format(fold+1, epoch, train_acc))
+            print("{0} fold:: validation accuracy for {1}th epoch is: {2}".format(fold+1, epoch, val_acc))
+            if val_acc > best_acc:
+    #            if val_acc > train_acc:
+                torch.save({'fold': fold+1, 'epoch': epoch,'state_dict': model.state_dict(), 'args': args}, os.path.join(args.save, 'current.pth'))
                 best_acc = val_acc
                 best_epo = epoch
                 logger.info(
-             "Epoch {:04d} | Time {:.3f} ({:.3f}) | "
-             "Val Acc {:.4f}".format(
-                 epoch, batch_time_meter.val, batch_time_meter.avg, val_acc
-             )
-            )
+                 "Fold {:04d} | Epoch {:04d} | Time {:.3f} ({:.3f}) | "
+                 "Val Acc {:.4f}".format(
+                     fold+1, epoch, batch_time_meter.val, batch_time_meter.avg, val_acc
+                 )
+                )
+    accumulated_acc += best_acc
+logger.info("{:04d} CV fold average accuracy is: {:.3f}".format(args.cv, accumulated_acc/args.cv))
+os.remove(os.path.join(args.save, 'temp_hidden_' + str(args.hidden1) + '_linear_' + str(args.linear) +'_lr_'+str(args.lr)+'_wd_'+str(args.weight_decay)+'_bs_'+str(args.batch_size)+ '_dt_' + str(args.dropout) + '.pth'))
+if args.save_validation == True:
+    val_df = pd.DataFrame(val_df, columns = ["train_loss","train_acc","val_loss","val_acc"])
+    val_df.to_csv(os.path.join(args.save, args.dataset + '_validation.csv'))
 
-#        f = open(args.save + "epoch_record.txt","a")
-#        f.write("batch_size_{0}_lr_{1}_gc1_{2}_gc2_{3}_att_{4}_decay_{5}_epoch_{6}_model_{7}\tacc:{8}".format(batch_size,args.lr,args.hidden1,args.hidden2,args.att,args.weight_decay,epoch,args.model,val_acc))
-#        f.close()
-#    val_df[(epoch)*sum(val_mask):(epoch + 1) * sum(val_mask), :] = logits_val
-#pkl.dump(val_df, open(os.path.join(args.save, args.dataset + '_validation.csv'),'wb'))
-test()
+#test()
 
     

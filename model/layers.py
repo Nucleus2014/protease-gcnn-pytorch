@@ -31,8 +31,8 @@ class GraphConvolution(Module):
             self.bias.data.uniform_(-stdv, stdv)
 
     def forward(self, input, adj):
-        support = torch.matmul(input, self.weight)
-        output = torch.matmul(adj, support)
+        support = torch.matmul(adj, input)
+        output = torch.matmul(support, self.weight)
         if self.bias is not None:
             return output + self.bias
         else:
@@ -106,9 +106,12 @@ class ConcatReLU(Module):
         return out
 
 class norm(Module):
-    def __init__(self, in_features):
+    def __init__(self, in_features, mode):
         super(norm, self).__init__()
-        self.norm = torch.nn.BatchNorm1d(in_features)
+        if mode == 'pre':
+            self.norm = torch.nn.BatchNorm1d(in_features)
+        elif mode == 'post':
+            self.norm = torch.nn.BatchNorm2d(in_features)
     def forward(self,x,adj):
         out = self.norm(x)
         return out
