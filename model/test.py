@@ -50,6 +50,7 @@ parser.add_argument('--batch_size',type=int, default=8)
 parser.add_argument('--weight', type=str, default='pre',choices=['pre','post'])
 parser.add_argument('--dim_des',action='store_true',default=False)
 parser.add_argument('--save', type=str, default='./experiment1')
+parser.add_argument('--importance',action='store_true', default = False, help='Whether calculate each variable's importance.')
 args = parser.parse_args()
 
 makedirs(args.save)
@@ -133,99 +134,5 @@ for i in range(nepoch):
              "Best Acc {:.4f}".format(
                  best_epo, best_acc
              ))
-#makedirs(args.save)
-#logger = get_logger(logpath=os.path.join(args.save, 'logs'), filepath=os.path.abspath(__file__))
-#logger.info(args)
-#device = torch.device('cuda:' + str(args.gpu) if torch.cuda.is_available() else 'cpu')
-#
-### Determine Number of Supports and Assign Model Function
-##if args.model == 'gcn':
-##    num_supports = 1
-##    model_func = GCN
-##elif args.model == 'gcn_cheby':
-##    num_supports = 1 + args.max_degree
-##    model_func = GCN
-##else:
-##    raise ValueError('Invalid argument for model: ' + str(FLAGS.model))
-#    
-## Load data
-#adj_ls, features, labels, sequences, proteases, labelorder, train_mask, val_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset)
-#
-## Size of Different Sets
-#print("|Training| {}, |Validation| {}, |Testing| {}".format(np.sum(train_mask), np.sum(val_mask), np.sum(test_mask)))
-#    
-## Model and optimizer
-#model = GCN(nnode=features.shape[1],
-#            nfeat=features.shape[2],
-#            mfeat=adj_ls.shape[3],
-#            nhid1=args.hidden1,
-#            nhid2=args.hidden2,
-#            nclass=labels.shape[1],
-#            dropout=args.dropout).to(device)
-#logger.info(model)
-#logger.info('Number of parameters: {}'.format(count_parameters(model)))
-#            
-#criterion = nn.NLLLoss().to(device)
-#
-#optimizer = optim.Adam(model.parameters(),lr=args.lr, weight_decay=args.weight_decay)
-#
-#best_acc = 0
-#batch_time_meter = RunningAverageMeter()
-#end = time.time()
-#print("Total number of forward processes:" + str(args.epochs * args.batch_size))
-#
-##batches_per_epoch = int(sum(train_mask) / args.batch_size)
-##print("Batches per epoch is:" + str(batches_per_epoch))
-#batch_size = args.batch_size
-#epochs_num = args.epochs
-#
-#if args.save_validation == True:
-#    val_df = np.zeros([args.epochs*sum(val_mask),labels.shape[1]])
-#
-##mask = np.array([x or y for (x,y) in zip(train_mask, val_mask)], dtype = np.bool)
-#for epoch in range(epochs_num):
-#    n = 0
-#    for batch_mask in get_batch_iterator(train_mask, batch_size):
-#        optimizer.zero_grad()
-#        n = n + 1
-#        print('this is the {}th batch'.format(n))
-#        x = features[batch_mask].to(device)
-#        y = labels[batch_mask]
-#        y = torch.argmax(y,axis=1).to(device)
-#        adj = adj_ls[batch_mask].to(device)
-#        model.train()
-#        logits = model(x, adj)
-#        loss = criterion(logits,y)
-#        loss.backward()
-#        optimizer.step()
-#        train_acc = accuracy(logits, y)
-#        print("train loss is {}".format(loss))
-#        print("train accuracy is {}".format(train_acc))
-#        batch_time_meter.update(time.time() - end)
-#        end = time.time()
-#    with torch.no_grad():
-#        #train_acc = accuracy(model, logits, labels[train_mask])
-#        model.eval()
-#        logits_val = model(features[val_mask], adj_ls[val_mask])
-#        loss_val = criterion(logits_val,torch.argmax(labels[val_mask],axis=1))
-#        val_acc = accuracy(logits_val, torch.argmax(labels[val_mask],axis=1))
-#        print("accuracy for {0}th epoch is: {1}".format(epoch,val_acc))
-#        print("loss is {0}:".format(loss_val))
-#        if val_acc > best_acc:
-#            torch.save({'epoch': epoch,'state_dict': model.state_dict(), 'args': args}, os.path.join(args.save, 'model.pth'))
-#            best_acc = val_acc
-#            best_epo = epoch
-#            logger.info(
-#             "Epoch {:04d} | Time {:.3f} ({:.3f}) | "
-#             "Val Acc {:.4f}".format(
-#                 epoch, batch_time_meter.val, batch_time_meter.avg, val_acc
-#             )
-#            )
-#        f = open(args.save + "epoch_record.txt","a")
-#        f.write("batch_size_{0}_lr_{1}_gc_{2}_decay_{3}_epoch_{4}\tacc:{5}".format(batch_size,args.lr,args.hidden1,args.weight_decay,epoch,val_acc))
-#        f.close()
-#    val_df[(epoch)*sum(val_mask):(epoch + 1) * sum(val_mask), :] = logits_val
-#pkl.dump(val_df, open(os.path.join(args.save, args.dataset + '_validation.csv'),'wb'))
 test()
-
     
