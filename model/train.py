@@ -1,3 +1,8 @@
+# This script is to train and validate GCNN
+# Author: Changpeng Lu
+# Usage:
+# python train.py --save_validation --dataset HCV_binary_10_ang_aa_sinusoidal_encoding_6_energy_7_energyedge_5_hbond --test_dataset HCV_binary_10_ang_aa_sinusoidal_encoding_2_energy_7_energyedge_5_hbond --epochs 1000 --hidden1 $tmp_hid --weight post --depth 2 --att 0 --model gcn --batch_size $tmp_bs --lr $tmp_lr --dropout 0.01 --weight_decay $tmp_wd --save 'outputs/ms/weight_node_feature_matrix/'
+
 from __future__ import division
 from __future__ import print_function
 
@@ -149,7 +154,6 @@ if args.save_test == True: # save test dataset
 
 # save initialize parameters
 torch.save({'state_dict': model.state_dict()}, os.path.join(args.save, 'temp_hidden_' + str(args.hidden1) + '_linear_' + str(args.linear) + '_lr_'+str(args.lr)+'_wd_'+str(args.weight_decay)+'_bs_'+str(args.batch_size)+'_dt_' + str(args.dropout) + '.pth'))
-
 for fold in range(cv_fold):
     # load initialized parameters
     checkpoint = torch.load(os.path.join(args.save, 'temp_hidden_' + str(args.hidden1) + '_linear_' + str(args.linear) + '_lr_'+str(args.lr)+'_wd_'+str(args.weight_decay)+'_bs_'+str(args.batch_size)+ '_dt_' + str(args.dropout) + '.pth'))

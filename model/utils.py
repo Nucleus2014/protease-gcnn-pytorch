@@ -1,3 +1,6 @@
+# This script contains utility functions for gcnn
+# Author: Changpeng Lu
+
 import numpy as np
 import pickle as pkl
 import networkx as nx

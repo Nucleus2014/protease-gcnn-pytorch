@@ -1,3 +1,8 @@
+# This script is to calculate dropping accuracy for each node/edge to show each importance
+# Author: Changpeng Lu
+# Usage
+# python importance.py --importance --dataset HCV_ternary_10_ang_aa_energy_7_energyedge_5_hbond --test_dataset HCV_ternary_10_ang_aa_energy_7_energyedge_5_hbond --hidden1 20 --depth 2 --linear 0 --att 0 --batch_size 500 --lr 0.005 --dropout 0.05 --weight_decay 5e-4 --save 'outputs/tt/HCV_ternary_10_ang_aa_energy_7_energyedge_5_hbond/bs_500/'
+
 from __future__ import division
 from __future__ import print_function
 
@@ -6,6 +11,7 @@ import time
 import logging
 import argparse
 import numpy as np
+import pandas as pd
 
 import torch
 import torch.nn as nn
@@ -50,7 +56,7 @@ parser.add_argument('--batch_size',type=int, default=8)
 parser.add_argument('--weight', type=str, default='pre',choices=['pre','post'])
 parser.add_argument('--dim_des',action='store_true',default=False)
 parser.add_argument('--save', type=str, default='./experiment1')
-parser.add_argument('--importance',action='store_true', default = False, help='Whether calculate each variable's importance.')
+parser.add_argument('--importance',action='store_true', default = False, help='Whether calculate each variable''s importance.')
 args = parser.parse_args()
 
 makedirs(args.save)
@@ -59,7 +65,7 @@ logger.info(args)
 
 # test
 def test(X, graph, y, testmask, model_for_test, hidden1, linear, learning_rate, weight_decay, batch_size, dropout, path_save):
-    checkpoint = torch.load(os.path.join(path_save, 'model_for_test_hidden_' + str(hidden1) + '_linear_' + str(linear) +'_lr_'+str(lr)+'_wd_'+str(weight_decay)+'_bs_'+str(batch_size)+ '_dt_' + str(dropout) + '.pth'))
+    checkpoint = torch.load(os.path.join(path_save, 'model_for_test_hidden_' + str(hidden1) + '_linear_' + str(linear) +'_lr_'+str(learning_rate)+'_wd_'+str(weight_decay)+'_bs_'+str(batch_size)+ '_dt_' + str(dropout) + '.pth'))
     logger.info("best epoch is:" + str(checkpoint['epoch']))
     model_for_test.load_state_dict(checkpoint['state_dict'])
     max_acc = 0
@@ -112,11 +118,11 @@ def importance(all_features, all_graph, ys, full_test_mask, trained_model, hidde
              hidden1=hidden1, linear=linear, learning_rate=learning_rate, \
              weight_decay=weight_decay, batch_size=batch_size, dropout=dropout, path_save=path_save)
         if i < num_node:
-            logger.info("Node {:04d} | Test Accuracy: {:.4f}".format(i+1, acc_vi)
+            logger.info("Node {:04d} | Test Accuracy: {:.4f}".format(i+1, acc_vi))
         else:
-            logger.info("Edge {:04d} | Test Accuracy: {:.4f}".format(i-num_node+1, acc_vi)
+            logger.info("Edge {:04d} | Test Accuracy: {:.4f}".format(i-num_node+1, acc_vi))
         acc_arr[i] = acc_vi
-        return acc_arr 
+    return acc_arr 
 
 is_cheby = True if args.model == 'chebyshev' else False
 adj_ls, features, labels, sequences, proteases, labelorder, train_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset, norm_type=is_cheby)
@@ -151,9 +157,9 @@ batch_size = args.batch_size
 # load trained model and test first
 logit_test, acc_test = test(X=features, graph=adj_ls, y=labels, testmask=test_mask, model_for_test=model, hidden1=args.hidden1, linear=args.linear, learning_rate=args.lr, weight_decay=args.weight_decay, batch_size=args.batch_size, dropout=args.dropout, path_save=args.save)
 logger.info("Original Test Accuracy is:" + str(acc_test))
-pkl.dump(logit_test,open(os.path.join(args.save, 'logits_test'),'wb'))
+#pkl.dump(logit_test,open(os.path.join(args.save, 'logits_test_vi'),'wb'))
 
-if is_var == True:
+if args.importance == True:
     acc_vi_arr = importance(all_features=features, all_graph=adj_ls, ys=labels, \
               full_test_mask=test_mask, trained_model=model, hidden1=args.hidden1, \
               linear=args.linear, learning_rate=args.lr, \
