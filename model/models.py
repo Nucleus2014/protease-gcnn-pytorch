@@ -49,13 +49,15 @@ class GCN(nn.Module):
         else:
             full_layers.append(ConcatLinear(nin_full, nclass))
         self.linear = nn.Sequential(*full_layers)
-        self.edgeweight = Parameter(torch.FloatTensor(mfeat,1))
+        # modification here: replace FloatTensor with rand to make sure values in adjacency matrix are more than zero. 
+        self.edgeweight = Parameter(torch.rand(mfeat,1))
 
     def forward(self, x, adj):
         if self.weight == 'pre':
             adj = torch.matmul(adj, self.edgeweight).view(adj.shape[0],adj.shape[1],-1)
         elif self.weight == 'post':
             x = x.view(x.shape[0],x.shape[1],-1,1).expand(x.shape[0],x.shape[1],x.shape[2],self.mfeat)
+            
             x = torch.transpose(x,-1,-3)
             x = torch.transpose(x,-1,-2)
             adj = torch.transpose(adj,-1,-3)

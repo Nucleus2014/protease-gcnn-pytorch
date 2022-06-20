@@ -2,6 +2,7 @@
 # Author: Changpeng Lu
 # Usage:
 # python protein_graph.py -o HCV_selector_10_ang_sin_single_pairwise_substrate_covalent -pr_path /projects/f_sdk94_1/EnzymeModelling/CompleteSilentFiles -class HCV.txt -index_p1 7 -prot HCV.pdb -d 10
+# right now, only suitable for single protease 
 
 # Load packages
 import os
@@ -25,10 +26,13 @@ def parse_args():
     parser.add_argument("-pr_path", "--protease_path", default = "/projects/f_sdk94_1/EnzymeModelling/CompleteSilentFiles", help="Path to silent pose directory for protease")
     parser.add_argument("-class", "--classification_file", default = "HCV.txt", help="Name of txt for sequences to use, must be in folder")
     parser.add_argument("-index_p1", "--index_p1", type=int, default = 7, help="Index of p1 in the pdb, starting from 1.")
+    parser.add_argument("-ub", "--upstream_buffer", type=int, default = 6, help="Upstream buffer from p1, starting from 1")
+    parser.add_argument("-db", "--downstream_buffer", type=int, default = -1, help="Downstream buffer from p1, starting from 1")
     parser.add_argument("-prot", "--protease", default="HCV.pdb", help="Protease pdb name.")
     parser.add_argument("-d","--select_distance", type=int, default=10, help="Distance for NeighborSelector")
+    parser.add_argument("-is", "--is_silent", action='store_true', help="if input is in silent file mode, otherwise, just ignore this flag")
+    parser.add_argument("-test", "--testset", action='store_true', help="if needed to save generated test index. only applicable for first time generation")
     return parser.parse_args()
-
 
 def get_logger(logpath, filepath, package_files=[], displaying=True, saving=True, debug=False):
     logger = logging.getLogger()
@@ -108,6 +112,13 @@ def graph_list_pickle(graph_ls, label_ls, sequence_ls, dataset_name, destination
             "ind.{}.sequences".format(dataset_name)), "wb"))
     pkl.dump(s, open( os.path.join(destination_path,\
             "ind.{}.labelorder".format(dataset_name)), "wb"))
+    # single proteases
+    pkl.dump([dataset_name] * x.shape[0], open(os.path.join(destination_path, \
+            "ind.{}.proteases".format(dataset_name)), "wb"))
+    if args.testset == True:
+        # save test index
+        np.savetxt(os.path.join(destination_path, \
+                "ind.{}.test.index".format(dataset_name)), test_index, fmt='%d')
 
 def get_silent_file(sequence, path_to_silent_files):
     """This just returns an absolute path to the silent file (windows specific possibly) false if not found"""
@@ -173,10 +184,13 @@ def generate_dummy_silent(sequence, path_to_silent_files):
     return filename
 
 def get_pose_from_pdb(sequence, path):
-    for pdb in os.listdir(path):
-        if pdb == sequence:
-            ret = pose_from_pdb(os.path.join(path, pdb))
-    return ret
+    #for pdb in os.listdir(path):
+    #    if pdb == sequence:
+    try:
+        ret = pose_from_pdb(os.path.join(path, sequence))
+        return ret
+    except:
+        return "Error: PDB file not exist"
 
 def get_pose(sequence, path, is_silent = True):
     if is_silent == True:
@@ -189,7 +203,8 @@ def get_pose(sequence, path, is_silent = True):
         except:
             return "Error: Invalid Silent"        
     else:
-        ret = get_pose_from_pdb(sequence) # need to modify
+        ret = get_pose_from_pdb(sequence, path)
+        return ret
 
 def index_substrate(pose):
     """Takes a pose and returns the indices of the substrate."""
@@ -204,7 +219,7 @@ def index_substrate(pose):
             substrate_indices.append(count + 1)
     return substrate_indices
 
-def index_substrate_cut_site(pose, index_p1 = 7, upstream_buffer = 6, downstream_buffer = -1, protease = None):
+def index_substrate_cut_site(pose, index_p1 = 7, upstream_buffer = 6, downstream_buffer = 1, protease = None):
     """This function takes the ROSETTA INDEX of the P1 residue for a substrate within its chain, a pose, and
     the number of upstream and downstream residues to model, and returns the indices of the substrate. If the
     buffer actually goes OOB of the substrate, a None type for that ind is instead returned for 0 pad modelling"""
@@ -244,12 +259,12 @@ def index_interface(pose,
             
     return interface_indices
 
-def get_ind_from_protease(protease_name, pdb_path, index_p1, dis, sfxn):
+def get_ind_from_protease(protease_name, pdb_path, index_p1, ub, db, dis, sfxn):
     # load default pose as original
     pose = pose_from_pdb(os.path.join(pdb_path, protease_name))
     sfxn.score(pose)
     #substrate_ind = index_substrate(pose) #the whole substrate
-    cutsite_ind = index_substrate_cut_site(pose, index_p1) #p2-p6 on the substrate
+    cutsite_ind = index_substrate_cut_site(pose, index_p1, upstream_buffer=ub, downstream_buffer=db) #p2-p6 on the substrate
     interface_ind = index_interface(pose, cutsite_ind, dis)
     return cutsite_ind, interface_ind
 
@@ -263,7 +278,6 @@ class protein_graph:
     When supplied interface and substrate are non-zero length
     The intersection of substrate and interface indices is empty
     Only canonical amino acids are not supported
-
     Possible Values:
     energy_terms = [fa_intra_sol_xover4, fa_intra_rep, rama_prepro, omega, p_aa_pp, fa_dun, ref]
     energy_edge_terms = [pro_close, fa_atr, fa_rep, fa_sol, fa_elec, lk_ball_wtd]"""
@@ -457,7 +471,7 @@ class protein_graph:
 
 # Goes from a sequence to a graph representation.
 def generate_graph(seq, pr_path, substrate_ind, interface_ind, params, sfxn):
-    pose = get_pose(seq, pr_path)
+    pose = get_pose(seq, pr_path, is_silent=args.is_silent)
     if type(pose) == type("string"):
         return pose
     g = protein_graph(pose = pose,
@@ -479,13 +493,15 @@ def main(args):
     output = args.output 
     pr_path = args.protease_path
     index_p1 = args.index_p1
+    ub = args.upstream_buffer
+    db = args.downstream_buffer
     protease = args.protease
     dis = args.select_distance
     
     logger = get_logger(logpath=os.path.join(data_path, 'logs'), filepath=os.path.abspath(__file__))
     
     params = {"amino_acids":True,
-                "sinusoidal_encoding":2,
+                "sinusoidal_encoding":0,
                 "coordinates": False,
                 "substrate_boolean":True,
                 "energy_terms":[fa_intra_sol_xover4, fa_intra_rep, rama_prepro, omega, p_aa_pp, fa_dun, ref],
@@ -495,7 +511,7 @@ def main(args):
                 "covalent_edge": True,}
     logger.info("Features Info: {}".format(params))
     
-    cutsite_ind, interface_ind = get_ind_from_protease(args.protease, pdb_path, index_p1, dis, sfxn)
+    cutsite_ind, interface_ind = get_ind_from_protease(args.protease, pdb_path, index_p1, ub, db, dis, sfxn)
     logger.info("Focus substrate indices are {}".format(','.join([str(u) for u in cutsite_ind])))
     logger.info("Neighbor residues indices are {}".format(','.join([str(q) for q in interface_ind])))
     
@@ -517,7 +533,6 @@ def main(args):
     for i in range(len(sequences)):
         seq = sequences[i]
         graph = generate_graph(seq, pr_path, cutsite_ind, interface_ind, params, sfxn)
-        logger.info("Graph for {} has been generated successfully.".format(seq))
         if graph == "Error: No Silent":
             missed_sequences.append(seq)
         elif graph == "Error: Invalid Silent":
@@ -526,7 +541,7 @@ def main(args):
             seq_final.append(seq)
             graphs.append(graph)
             label_final.append(labels[i])
-    
+            logger.info("Graph for {} has been generated successfully.".format(seq)) 
     logger.info("There were {} poses which loaded".format(len(graphs)))
     logger.info("There were {} poses missing due to silent files.".format(len(missed_sequences)))
     logger.info("There were {} poses which failed to be loaded.".format(len(error_sequences)))
@@ -538,4 +553,4 @@ def main(args):
 if __name__ == '__main__':
     args = parse_args()
     logger.info(args)
-    main(args)    
+    main(args)

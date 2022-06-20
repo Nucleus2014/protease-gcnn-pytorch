@@ -55,29 +55,45 @@ parser.add_argument('--max_degree',type=int, default = 3, help='number of suppor
 parser.add_argument('--batch_size',type=int, default=8)
 parser.add_argument('--weight', type=str, default='pre',choices=['pre','post'])
 parser.add_argument('--dim_des',action='store_true',default=False)
+parser.add_argument('--new', action='store_true', default=False)
+parser.add_argument('--energy_only', action='store_true', default=False)
 parser.add_argument('--save', type=str, default='./experiment1')
 parser.add_argument('--importance',action='store_true', default = False, help='Whether calculate each variable''s importance.')
 args = parser.parse_args()
 
 makedirs(args.save)
-logger = get_logger(logpath=os.path.join(args.save, 'logs'), filepath=os.path.abspath(__file__))
+logger = get_logger(logpath=os.path.join('logs'), filepath=os.path.abspath(__file__))
 logger.info(args)
 
 # test
-def test(X, graph, y, testmask, model_for_test, hidden1, linear, learning_rate, weight_decay, batch_size, dropout, path_save):
-    checkpoint = torch.load(os.path.join(path_save, 'model_for_test_hidden_' + str(hidden1) + '_linear_' + str(linear) +'_lr_'+str(learning_rate)+'_wd_'+str(weight_decay)+'_bs_'+str(batch_size)+ '_dt_' + str(dropout) + '.pth'))
+def test(X, graph, y, testmask, model_for_test, hidden1, linear, learning_rate, weight_decay, batch_size, dropout, path_save,new=False):
+    #checkpoint = torch.load(os.path.join(path_save, 'model_for_test_seed_' + str(args.seed) + '_hidden_' + str(hidden1) + '_linear_' + str(linear) +'_lr_'+str(learning_rate)+'_wd_'+str(weight_decay)+'_bs_'+str(batch_size)+ '_dt_' + str(dropout) + '.pth'))
+    checkpoint = torch.load(path_save)
     logger.info("best epoch is:" + str(checkpoint['epoch']))
     model_for_test.load_state_dict(checkpoint['state_dict'])
-    max_acc = 0
-    with torch.no_grad():
-        model_for_test.eval()
-        for j in range(100):
-            logits_test = model_for_test(X[testmask], graph[testmask])
-            test_acc = accuracy(logits_test, torch.argmax(y[testmask],axis=1))
-            if test_acc > max_acc:
-                logits_test_fin = logits_test
-                max_acc = test_acc
-    return logits_test_fin, max_acc
+    print('model loaded')
+    if new == False:
+        #if testmask != None:
+        print('testmask is not none. good.')
+        X = X[testmask]
+        graph = graph[testmask]
+        y = y[testmask]
+        #else:
+        #    print('testmask is none. bad!')
+        with torch.no_grad():
+            model_for_test.eval()
+            #for j in range(100):
+            logits_test = model_for_test(X, graph)
+            test_acc = accuracy(logits_test, torch.argmax(y,axis=1))
+                #if test_acc > max_acc:
+                 #   logits_test_fin = logits_test
+                  #  max_acc = test_acc
+        return logits_test, test_acc
+    else:
+        with torch.no_grad():
+            model_for_test.eval()
+            logits_test = model_for_test(X, graph)
+            return logits_test
     
 
 # variable importance
@@ -125,15 +141,19 @@ def importance(all_features, all_graph, ys, full_test_mask, trained_model, hidde
     return acc_arr 
 
 is_cheby = True if args.model == 'chebyshev' else False
-adj_ls, features, labels, sequences, proteases, labelorder, train_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset, norm_type=is_cheby)
+is_energy_only = args.energy_only
+no_energy = True if args.no_energy == True else False
+if args.new == False:
+    adj_ls, features, labels, sequences, proteases, labelorder, train_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset, norm_type=is_cheby, test_format = 'split', energy_only=is_energy_only, noenergy=args.no_energy)
+    tmp_mask = np.array([(not idx) for idx in test_mask], dtype=np.bool)
+    # Size of Different Sets
+    logger.info("|Training| {},|Testing| {}".format(np.sum(tmp_mask), np.sum(test_mask)))
+else:
+    adj_ls, features, sequences, labelorder = load_data(args.dataset, norm_type=is_cheby, energy_only=is_energy_only, noenergy=args.no_energy) 
+
 cheby_params = args.max_degree if args.model == 'chebyshev' else None
 weight_mode = args.weight
-no_energy = True if args.no_energy == True else False
 dim_des = args.dim_des
-tmp_mask = np.array([(not idx) for idx in test_mask], dtype=np.bool)
-
-# Size of Different Sets
-logger.info("|Training| {},|Testing| {}".format(np.sum(tmp_mask), np.sum(test_mask)))
 
 model = GCN(nnode=features.shape[1],
             nfeat=features.shape[2],
@@ -146,7 +166,7 @@ model = GCN(nnode=features.shape[1],
             linear=args.linear,
             weight=weight_mode,
             is_des=dim_des,
-            nclass=labels.shape[1],
+            nclass=2, #labels.shape[1],
             dropout=args.dropout,
             cheby=cheby_params)
 logger.info(model)
@@ -155,9 +175,16 @@ logger.info('Number of parameters: {}'.format(count_parameters(model)))
 batch_size = args.batch_size
 
 # load trained model and test first
-logit_test, acc_test = test(X=features, graph=adj_ls, y=labels, testmask=test_mask, model_for_test=model, hidden1=args.hidden1, linear=args.linear, learning_rate=args.lr, weight_decay=args.weight_decay, batch_size=args.batch_size, dropout=args.dropout, path_save=args.save)
-logger.info("Original Test Accuracy is:" + str(acc_test))
-#pkl.dump(logit_test,open(os.path.join(args.save, 'logits_test_vi'),'wb'))
+if args.new == False:
+    logit_test, acc_test = test(X=features, graph=adj_ls, y=labels, testmask=test_mask, model_for_test=model, hidden1=args.hidden1, linear=args.linear, learning_rate=args.lr, weight_decay=args.weight_decay, batch_size=args.batch_size, dropout=args.dropout, path_save=args.save, new=False)
+    print("Original Test Accuracy is:" + str(acc_test))
+else:
+    logger.info('testing begin')
+    logit_test = test(X=features, graph=adj_ls, y=None, testmask=None, model_for_test=model, hidden1=args.hidden1, linear=args.linear, learning_rate=args.lr, weight_decay=args.weight_decay, batch_size=args.batch_size, dropout=args.dropout, path_save=args.save, new=True)
+
+    logger.info('logits printing')
+    logger.info(args.save.split('/')[-1][:-4]) 
+    pkl.dump(logit_test,open('outputs/logits_test_' + args.dataset + '_model_' + args.save.split('/')[-1][:-4],'wb'))
 
 if args.importance == True:
     acc_vi_arr = importance(all_features=features, all_graph=adj_ls, ys=labels, \
@@ -166,4 +193,4 @@ if args.importance == True:
                weight_decay=args.weight_decay, batch_size=args.batch_size, \
                dropout=args.dropout, path_save=args.save)
     df = pd.DataFrame(acc_vi_arr, index = range(acc_vi_arr.shape[0])) # node + edge
-    df.to_csv(os.path.join(args.save,"variable_importance.csv"))
+    df.to_csv(os.path.join(args.save.split('/')[-1][:-4] + "_variable_importance.csv"))

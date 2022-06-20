@@ -1,2 +1,0 @@
-data/ind.* filter=lfs diff=lfs merge=lfs -text
-ind.* filter=lfs diff=lfs merge=lfs -text
