@@ -171,12 +171,12 @@ def transform(mat, scale_type, ind = 'all'): # ind saves indices that needs to b
         mat = tmp
     return mat
 
-def load_input(input_dataset_str, dataname_list, input_type = 'train'): #input_type: 'train' or 'test'
+def load_input(input_dataset_str, dataname_list, input_type = 'train',path=None): #input_type: 'train' or 'test'
     objects = []
     if input_type == 'train':
         path_str = '../data/ind.{}.{}'
     elif input_type == 'test':
-        path_str = '../data/ind.{}.test.{}' #'/projects/f_sdk94_1/PGCN/Data/new_subs/ind.{}.{}' #'../data/ind.{}.test.{}'
+        path_str = path + '/ind.{}.{}' #'../data/ind.{}.test.{}'
     for i in range(len(dataname_list)):
         with open(path_str.format(input_dataset_str, dataname_list[i]), 'rb') as f:
             if sys.version_info > (3, 0):
@@ -185,13 +185,13 @@ def load_input(input_dataset_str, dataname_list, input_type = 'train'): #input_t
                 objects.append(pkl.load(f))
     return objects
 
-def load_data(dataset_str, is_test=None, norm_type=True, scale_type='exp', noenergy=False, cv=0, test_format = 'individual', energy_only=False):
+def load_data(dataset_str, is_test=None, is_val=None, norm_type=True, scale_type='exp', noenergy=False, cv=0, test_format = 'individual', energy_only=False, test_path=None):
     #test_format only accepts 'index' or 'individual' or None
     cwd = os.getcwd()
     if test_format == 'individual': # this individual set will not be supposed to have y and model has been trained
         names = ['graph', 'x', 'sequences']#, 'proteases']
         test_adj, test_features, test_sequences = tuple(load_input(dataset_str, 
-                                                                   names, input_type='test'))
+                                                                   names, input_type='test', path=test_path))
         # add normalize here
         #labelorder = tuple(load_input(dataset_str, ['labelorder']))[0]
         labelorder = ['CLEAVED','UNCLEAVED']
@@ -221,11 +221,20 @@ def load_data(dataset_str, is_test=None, norm_type=True, scale_type='exp', noene
             idx_test = idx[cutoff_2:]
             idx_train = idx[:cutoff_2]
         else:
-            test_idx_reorder = parse_index_file("../data/ind.{}.test.index".format(is_test))
-            idx_test = np.sort(test_idx_reorder)
-            idx_train = idx[np.array([x not in idx_test for x in idx])]
+            if is_val == None:
+                test_idx_reorder = parse_index_file("../data/ind.{}.test.index".format(is_test))
+                idx_test = np.sort(test_idx_reorder)
+                idx_train = idx[np.array([x not in idx_test for x in idx])]
+            else:
+                test_idx_reorder = parse_index_file("../data/ind.{}.trisplit.test.index".format(is_test))
+                idx_test = np.sort(test_idx_reorder)
+                val_idx_reorder = parse_index_file("../data/ind.{}.trisplit.val.index".format(is_val))
+                idx_val = np.sort(val_idx_reorder)
+                val_mask = sample_mask(idx_val, y_arr.shape[0])
+                idx_train = idx[np.array([x not in idx_test and x not in idx_val for x in idx])]
         train_mask = sample_mask(idx_train, y_arr.shape[0])
         test_mask = sample_mask(idx_test, y_arr.shape[0])
+
         #print(np.where(test_mask)[0])
         if cv != 0: # if cv != 0, means validation set exists. Then the former train indice set should be separated based on the number of folds
             cv_aux = np.array_split(idx_train, cv)
@@ -242,7 +251,11 @@ def load_data(dataset_str, is_test=None, norm_type=True, scale_type='exp', noene
     features = torch.FloatTensor(np.array(features))
     y_arr = torch.LongTensor(y_arr)
     adj_ls = torch.FloatTensor(np.array(adj_ls))
-    return adj_ls, features, y_arr, sequences, proteases, labelorder, train_mask, test_mask
+    if is_val == None:
+        return adj_ls, features, y_arr, sequences, proteases, labelorder, train_mask, test_mask
+    else:
+        return adj_ls, features, y_arr, sequences, proteases, labelorder, train_mask, val_mask, test_mask
+
 
 def normalize(mx): 
     # normalize matrix when loading data using partition probability because weights * features should avoid features = 0

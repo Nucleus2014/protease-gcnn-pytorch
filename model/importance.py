@@ -49,8 +49,11 @@ parser.add_argument('--dropout', type=float, default=0.1,
                     help='Dropout rate (1 - keep probability).')
 parser.add_argument('--no_energy', action='store_true', default=False)
 parser.add_argument('--test_dataset',type=str)
+parser.add_argument('--test_path', default= '/projects/f_sdk94_1/PGCN/Data/new_subs', type=str)
+parser.add_argument('--val_dataset', type=str, default=None)
 parser.add_argument('--dataset',type=str, help='input dataset string')
 parser.add_argument('--model', type = str, default = 'gcn',choices=['gcn','chebyshev'])
+parser.add_argument('--scale_type', choices = ['exp','minmax'], default='exp')
 parser.add_argument('--max_degree',type=int, default = 3, help='number of supports')
 parser.add_argument('--batch_size',type=int, default=8)
 parser.add_argument('--weight', type=str, default='pre',choices=['pre','post'])
@@ -140,16 +143,21 @@ def importance(all_features, all_graph, ys, full_test_mask, trained_model, hidde
         acc_arr[i] = acc_vi
     return acc_arr 
 
-is_cheby = True if args.model == 'chebyshev' else False
 is_energy_only = args.energy_only
 no_energy = True if args.no_energy == True else False
 if args.new == False:
-    adj_ls, features, labels, sequences, proteases, labelorder, train_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset, norm_type=is_cheby, test_format = 'split', energy_only=is_energy_only, noenergy=args.no_energy)
-    tmp_mask = np.array([(not idx) for idx in test_mask], dtype=np.bool)
-    # Size of Different Sets
-    logger.info("|Training| {},|Testing| {}".format(np.sum(tmp_mask), np.sum(test_mask)))
+    if args.val_dataset != None:
+        logger.info('TripleSplit!')
+        adj_ls, features, labels, sequences, proteases, labelorder, train_mask, val_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only)
+        logger.info("|Training| {},|Validation| {}, |Testing| {}".format(np.sum(train_mask), np.sum(val_mask), np.sum(test_mask)))
+        tmp_mask = train_mask
+    else:
+        adj_ls, features, labels, sequences, proteases, labelorder, train_mask, val_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only) #scale_type determines node feature scale
+        tmp_mask = np.array([(not idx) for idx in val_mask], dtype=np.bool)
+        # Size of Different Sets
+        logger.info("|Training| {},|Testing| {}".format(np.sum(tmp_mask), np.sum(val_mask)))
 else:
-    adj_ls, features, sequences, labelorder = load_data(args.dataset, norm_type=is_cheby, energy_only=is_energy_only, noenergy=args.no_energy) 
+    adj_ls, features, sequences, labelorder = load_data(args.dataset, norm_type=True, energy_only=is_energy_only, noenergy=args.no_energy, test_path=args.test_path) 
 
 cheby_params = args.max_degree if args.model == 'chebyshev' else None
 weight_mode = args.weight
@@ -184,8 +192,12 @@ else:
 
     logger.info('logits printing')
     logger.info(args.save.split('/')[-1][:-4]) 
-    pkl.dump(logit_test,open('outputs/logits_test_' + args.dataset + '_model_' + args.save.split('/')[-1][:-4],'wb'))
-
+    if args.save.find('Combined') != -1:
+        suffix = '_all'
+    else:
+        suffix = ''
+    pkl.dump(logit_test,open('outputs/new_subs_energy_only_20220718' + suffix + '/logits_test_' + args.dataset + '_energy_only_' + str(args.energy_only),'wb'))
+    print('outputs/new_subs_energy_only_20220718' + suffix + '/logits_test_' + args.dataset + '_energy_only_' + str(args.energy_only))
 if args.importance == True:
     acc_vi_arr = importance(all_features=features, all_graph=adj_ls, ys=labels, \
               full_test_mask=test_mask, trained_model=model, hidden1=args.hidden1, \
