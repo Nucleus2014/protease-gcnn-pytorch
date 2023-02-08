@@ -9,8 +9,7 @@ To use our method, first download this repository by using the following command
 Go to *graph* folder and excecute *protein_graph.py*:  
 ```
 cd graph  
-srun python protein_graph.py -o TEV_all_binary_10_ang_aa_energy_7_coord_energyedge_5_hbond 
--pr_path /projects/f_sdk94_1/EnzymeModelling/TEVFinalStructures -class TEV_final_all_var_noDup.txt -prot TEV_QS.pdb -d 10  
+srun python protein_graph.py -o TEV_all_binary_10_ang_aa_energy_7_coord_energyedge_5_hbond -pr_path /projects/f_sdk94_1/EnzymeModelling/TEVFinalStructures -class TEV_final_all_var_noDup.txt -prot TEV_QS.pdb -d 10  
 ```
 ## Step 2: Train, validate and test
 Go to *model* folder and excecute *train.py*:
