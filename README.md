@@ -30,10 +30,10 @@ dropout=(0.01 0.05 0.1 0.2 0.3 0.4 0.5)
 batch_size=(500 100 1000 50 10)
 ```
 ## Test with trained model (Alternative)
-If you would like to test with already-trained gcnn model, you could use *test.py* in *model* folder. It will load existed pytorch model file and test data that you specify.  
+If you would like to test with already-trained pgcn model, you could use *importance.py* in *model* folder. It will load existed pytorch model file and test data that you specify.  
 ```
 cd model
-python test.py --dataset HCV_binary_10_ang_aa_sinusoidal_encoding_4_energy_7_energyedge_5_hbond --test_dataset HCV_binary_10_ang_aa_sinusoidal_encoding_2_energy_7_energyedge_5_hbond --epochs 500 --hidden1 20 --depth 2 --linear 1024 --att 0 --model gcn --batch_size 500 --lr $tmp_lr --dropout $tmp_dt --weight_decay $tmp_wd --save 'outputs/tt/HCV_binary_10_ang_aa_sinusoidal_encoding_4_energy_7_energyedge_5_hbond/bs_500/'  
+python importance.py --dataset ${data} --hidden1 20 --depth 2 --linear 0 --att 0 --batch_size ${bs} --lr ${lr} --dropout ${dt} --weight_decay ${wd} --seed ${seed} --save ${path} ${flag} --data_path /scratch/cl1205/protease-gcnn-pytorch/data --new --test_logits_path /scratch/cl1205/protease-gcnn-pytorch/model/outputs/tev_design_20220922_dual_cleavage/  
 ```
 ## Hyperparameter Tuning on cluster (Alternative)
 There are several examples in bash sciprt format for hyperparameter tuning on clusters. To use these scripts, clusters should support Slurm.  
