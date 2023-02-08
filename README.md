@@ -22,6 +22,13 @@ python train.py --dataset TEV_all_binary_10_ang_aa_energy_7_energyedge_5_hbond
 --model gcn --batch_size 100 --lr 0.005 --dropout 0.2 --weight_decay 0.0005 
 --save "outputs/tev/TEV_all_binary_10_ang_aa_energy_7_energyedge_5_hbond/bs_100/'  
 ```
+Options of hyperparameter tuning:
+```
+weight_decay=(1e-3 5e-3 1e-4 5e-4)
+learning_rate=(1e-2 5e-2 1e-3 5e-3 1e-4 5e-4)
+dropout=(0.01 0.05 0.1 0.2 0.3 0.4 0.5)
+batch_size=(500 100 1000 50 10)
+```
 ## Test with trained model (Alternative)
 If you would like to test with already-trained gcnn model, you could use *test.py* in *model* folder. It will load existed pytorch model file and test data that you specify.  
 ```
