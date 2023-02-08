@@ -15,7 +15,12 @@ srun python protein_graph.py -o TEV_all_binary_10_ang_aa_energy_7_coord_energyed
 Go to *model* folder and excecute *train.py*:
 ```
 cd model  
-python --save_validation --dataset HCV_binary_10_ang_aa_sinusoidal_encoding_6_energy_7_energyedge_5_hbond --test_dataset HCV_binary_10_ang_aa_sinusoidal_encoding_2_energy_7_energyedge_5_hbond --epochs 1000 --hidden1 $tmp_hid --weight post --depth 2 --att 0 --model gcn --batch_size $tmp_bs --lr $tmp_lr --dropout 0.01 --weight_decay $tmp_wd --save 'outputs/ms/weight_node_feature_matrix/'  
+python train.py --dataset TEV_all_binary_10_ang_aa_energy_7_energyedge_5_hbond 
+--test_dataset TEV_all_binary_10_ang_aa_energy_7_energyedge_5_hbond 
+--val_dataset TEV_all_binary_10_ang_aa_energy_7_energyedge_5_hbond 
+--seed 1 --epochs 500 --hidden1 20 --depth 2 --linear 0 --att 0 
+--model gcn --batch_size 100 --lr 0.005 --dropout 0.2 --weight_decay 0.0005 
+--save "outputs/tev/TEV_all_binary_10_ang_aa_energy_7_energyedge_5_hbond/bs_100/'  
 ```
 ## Test with trained model (Alternative)
 If you would like to test with already-trained gcnn model, you could use *test.py* in *model* folder. It will load existed pytorch model file and test data that you specify.  
