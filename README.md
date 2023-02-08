@@ -1,7 +1,7 @@
 # protease-gcnn-pytorch  
 This project is to present a graph-based convolutional neural network, called protein convolutional neural network (PGCN) to predict protease specificity. We propose a new creation of feature set that holds natural energy information for proteins, which could best represent protein activities.  
 
-![https://github.com/Nucleus2014/protease-gcnn-pytorch/blob/master/pipeline.png]
+![](https://github.com/Nucleus2014/protease-gcnn-pytorch/blob/master/pipeline.png)
 
 To use our method, first download this repository by using the following command:  
 ```git clone https://github.com/Nucleus2014/protease-gcnn-pytorch```  
