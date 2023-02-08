@@ -33,7 +33,10 @@ batch_size=(500 100 1000 50 10)
 If you would like to test with already-trained pgcn model, you could use *importance.py* in *model* folder. It will load existed pytorch model file and test data that you specify.  
 ```
 cd model
-python importance.py --dataset ${data} --hidden1 20 --depth 2 --linear 0 --att 0 --batch_size ${bs} --lr ${lr} --dropout ${dt} --weight_decay ${wd} --seed ${seed} --save ${path} ${flag} --data_path /scratch/cl1205/protease-gcnn-pytorch/data --new --test_logits_path /scratch/cl1205/protease-gcnn-pytorch/model/outputs/tev_design_20220922_dual_cleavage/  
+python importance.py --dataset ${data} --hidden1 20 --depth 2 --linear 0 --att 0 
+--batch_size ${bs} --lr ${lr} --dropout ${dt} --weight_decay ${wd} --seed ${seed} 
+--save ${path} ${flag} --data_path /scratch/cl1205/protease-gcnn-pytorch/data --new 
+--test_logits_path /scratch/cl1205/protease-gcnn-pytorch/model/outputs/tev_design_20220922_dual_cleavage/  
 ```
 ## Hyperparameter Tuning on cluster (Alternative)
 There are several examples in bash sciprt format for hyperparameter tuning on clusters. To use these scripts, clusters should support Slurm.  
