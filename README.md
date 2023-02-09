@@ -11,16 +11,18 @@ Go to *graph* folder and excecute *protein_graph.py*:
 cd graph  
 srun python protein_graph.py -o TEV_all_binary_10_ang_aa_energy_7_coord_energyedge_5_hbond -pr_path /projects/f_sdk94_1/EnzymeModelling/TEVFinalStructures -class TEV_final_all_var_noDup.txt -prot TEV_QS.pdb -d 10  
 ```
-### Description of generated data
-<graph>: the edge feature tensor in the dimension of (K,N,N,M)
-<x>: the node feature matrix in the dimension of (K,N,F)
-<y>: labels in the dimension of (K,2); CLEAVED if [1,0], UNCLEAVED if [0,1]
-<labelorder>: the indicator of which class is for the columns in <y> 
-<sequences>: the list of sample names 
-
-Slit data and save their original indices in:
-<trisplit.test.index> and <trisplit.val.index>: indices of samples if triple splitting data into training, validation and test sets. Indices starts from 0.
+### Description of generated data  
+If the suffix is one of the below,  
+`<graph>`: the edge feature tensor in the dimension of (K,N,N,M)  
+`<x>`: the node feature matrix in the dimension of (K,N,F)  
+`<y>`: labels in the dimension of $(K,2)$; CLEAVED if $[1,0]$, UNCLEAVED if $[0,1]$
+`<labelorder>`: the indicator of which class is for the columns in `<y>`   
+`<sequences>`: the list of sample names   
 Where K is the number of samples (graphs), N is the number of nodes, M is the number of edge features, F is the number of node features.
+  
+Slit data and save their original indices in:  
+<trisplit.test.index> and <trisplit.val.index>: indices of samples if triple splitting data into training, validation and test sets. Indices starts from 0.
+
 
 ## Step 2: Train, validate and test
 Go to *model* folder and excecute *train.py*:
