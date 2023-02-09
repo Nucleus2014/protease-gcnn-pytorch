@@ -15,7 +15,7 @@ srun python protein_graph.py -o TEV_all_binary_10_ang_aa_energy_7_coord_energyed
 If the suffix is one of the below,  
 `<graph>`: the edge feature tensor in the dimension of (K,N,N,M)  
 `<x>`: the node feature matrix in the dimension of (K,N,F)  
-`<y>`: labels in the dimension of $(K,2)$; CLEAVED if $[1,0]$, UNCLEAVED if $[0,1]$
+`<y>`: labels in the dimension of $(K,2)$; CLEAVED if $[1,0]$, UNCLEAVED if $[0,1]$  
 `<labelorder>`: the indicator of which class is for the columns in `<y>`   
 `<sequences>`: the list of sample names   
 Where K is the number of samples (graphs), N is the number of nodes, M is the number of edge features, F is the number of node features.
