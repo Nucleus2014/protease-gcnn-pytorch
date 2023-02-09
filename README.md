@@ -5,6 +5,9 @@ This project is to present a graph-based convolutional neural network, called pr
 
 To use our method, first download this repository by using the following command:  
 ```git clone https://github.com/Nucleus2014/protease-gcnn-pytorch```  
+
+Rosetta models were generated using *design_protease.py* script.  
+
 ## Step 1: Generation of graphs  
 Go to *graph* folder and excecute *protein_graph.py*:  
 ```
