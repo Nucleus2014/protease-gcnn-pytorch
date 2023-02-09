@@ -45,8 +45,8 @@ batch_size=(500 100 1000 50 10)
 When model has been trained, *train.py* saves the model to the corresponding preset directory (using the flag *--save*).  
 I wrote a script to find the model with best accuracy, named as *find_best_acc.py*.  
 
-## Test with trained model (Alternative)
-If you would like to test with already-trained pgcn model, you could use *importance.py* in *model* folder. It will load existed pytorch model file and test data that you specify.  
+## Test with the pre-trained model
+If you would like to test with already-trained pgcn model, you could use *importance.py* in *model* folder. It will load existed pytorch model file and test data that you specify. Currently, we offer pre-trained models for HCV wild type, HCV A171T, HCV D183A, HCV R180K_A171T_D183A, HCV Combined and TEV Combined.    
 ```
 cd model
 python importance.py --dataset ${data} --hidden1 20 --depth 2 --linear 0 --att 0 
