@@ -1,5 +1,5 @@
 # protease-gcnn-pytorch  
-This project is to present a graph-based convolutional neural network, called protein convolutional neural network (PGCN) to predict protease specificity. We propose a new creation of feature set that holds natural energy information for proteins, which could best represent protein activities.  
+This project is to present a graph-based convolutional neural network, called protein convolutional neural network (PGCN) to predict protease specificity. We propose a new creation of feature set that holds natural energy information for proteins, which could best represent protein activities. Pre-trained models for HCV/TEV are in *model/outputs*, and cleavage information are in *graph/classifications*.   
 
 ![](https://github.com/Nucleus2014/protease-gcnn-pytorch/blob/master/pipeline.png)
 
@@ -46,7 +46,7 @@ When model has been trained, *train.py* saves the model to the corresponding pre
 I wrote a script to find the model with best accuracy, named as *find_best_acc.py*.  
 
 ## Test with the pre-trained model
-If you would like to test with already-trained pgcn model, you could use *importance.py* in *model* folder. It will load existed pytorch model file and test data that you specify. Currently, we offer pre-trained models for HCV wild type, HCV A171T, HCV D183A, HCV R180K_A171T_D183A, HCV Combined and TEV Combined.    
+If you would like to test with already-trained pgcn model, you could use *importance.py* in *model* folder. It will load existed pytorch model file and test data that you specify. Currently, we offer pre-trained models located at *model/outputs* for HCV wild type, HCV A171T, HCV D183A, HCV R170K_A171T_D183A, HCV Combined and TEV Combined.    
 ```
 cd model
 python importance.py --dataset ${data} --hidden1 20 --depth 2 --linear 0 --att 0 
