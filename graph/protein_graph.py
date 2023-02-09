@@ -408,7 +408,7 @@ class protein_graph:
         if params["coordinates"]:
             for i in range(len(vertice_arr)):
                 if vertice_arr[i] != None:
-                    C_alpha_coord = to_numpy(pose.residue(vertice_arr[i]).xyz("CA"))
+                    C_alpha_coord = np.array(pose.residue(vertice_arr[i]).xyz("CA"))
                     self.V[i, counter_F : (counter_F + 3)] = C_alpha_coord
             counter_F += 3
             print(self.V[i, counter_F : (counter_F + 3)])
@@ -502,7 +502,7 @@ def main(args):
     
     params = {"amino_acids":True,
                 "sinusoidal_encoding":0,
-                "coordinates": False,
+                "coordinates": True,
                 "substrate_boolean":True,
                 "energy_terms":[fa_intra_sol_xover4, fa_intra_rep, rama_prepro, omega, p_aa_pp, fa_dun, ref],
                 "energy_edge_terms":[fa_atr, fa_rep, fa_sol, fa_elec, lk_ball_wtd],

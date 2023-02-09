@@ -49,7 +49,8 @@ parser.add_argument('--dropout', type=float, default=0.1,
                     help='Dropout rate (1 - keep probability).')
 parser.add_argument('--no_energy', action='store_true', default=False)
 parser.add_argument('--test_dataset',type=str)
-parser.add_argument('--test_path', default= '/projects/f_sdk94_1/PGCN/Data/new_subs', type=str)
+parser.add_argument('--data_path', default= '/projects/f_sdk94_1/PGCN/Data/new_subs', type=str)
+parser.add_argument('--test_logits_path', type=str)
 parser.add_argument('--val_dataset', type=str, default=None)
 parser.add_argument('--dataset',type=str, help='input dataset string')
 parser.add_argument('--model', type = str, default = 'gcn',choices=['gcn','chebyshev'])
@@ -157,7 +158,7 @@ if args.new == False:
         # Size of Different Sets
         logger.info("|Training| {},|Testing| {}".format(np.sum(tmp_mask), np.sum(val_mask)))
 else:
-    adj_ls, features, sequences, labelorder = load_data(args.dataset, norm_type=True, energy_only=is_energy_only, noenergy=args.no_energy, test_path=args.test_path) 
+    adj_ls, features, sequences, labelorder = load_data(args.dataset, norm_type=True, energy_only=is_energy_only, noenergy=args.no_energy, data_path=args.data_path) 
 
 cheby_params = args.max_degree if args.model == 'chebyshev' else None
 weight_mode = args.weight
@@ -192,12 +193,15 @@ else:
 
     logger.info('logits printing')
     logger.info(args.save.split('/')[-1][:-4]) 
-    if args.save.find('Combined') != -1:
-        suffix = '_all'
-    else:
-        suffix = ''
-    pkl.dump(logit_test,open('outputs/new_subs_energy_only_20220718' + suffix + '/logits_test_' + args.dataset + '_energy_only_' + str(args.energy_only),'wb'))
-    print('outputs/new_subs_energy_only_20220718' + suffix + '/logits_test_' + args.dataset + '_energy_only_' + str(args.energy_only))
+    dump_path = os.path.join(args.test_logits_path, '-'.join(args.save.split('/')[1:])) 
+    logger.info('dump path set up')
+    logger.info(dump_path)
+    makedirs(dump_path)
+    #pkl.dump(logit_test,open('outputs/new_subs_energy_only_20220718' + suffix + '/logits_test_' + args.dataset + '_energy_only_' + str(args.energy_only),'wb'))
+#    print('outputs/new_subs_energy_only_20220718' + suffix + '/logits_test_' + args.dataset + '_energy_only_' + str(args.energy_only))
+    logger.info('make folder')
+    pkl.dump(logit_test, open(dump_path + '/logits_test_' + args.dataset, 'wb'))
+    logger.info('dump successful')
 if args.importance == True:
     acc_vi_arr = importance(all_features=features, all_graph=adj_ls, ys=labels, \
               full_test_mask=test_mask, trained_model=model, hidden1=args.hidden1, \
@@ -205,4 +209,4 @@ if args.importance == True:
                weight_decay=args.weight_decay, batch_size=args.batch_size, \
                dropout=args.dropout, path_save=args.save)
     df = pd.DataFrame(acc_vi_arr, index = range(acc_vi_arr.shape[0])) # node + edge
-    df.to_csv(os.path.join(args.save.split('/')[-1][:-4] + "_variable_importance.csv"))
+    df.to_csv(os.path.join('-'.join(args.save.split('/')[1:]) + "_variable_importance.csv"))
