@@ -31,6 +31,31 @@ def parse_args():
                         help='Directory of starting structure(s). It currently cannot handle multiple starting structures. \
                              If multiple starting strctures, make sure names of starting structures match \
                              protease_name in the info_file.')
+    parser.add_argument('-script_path', '--script_path', type=str,
+                        default = '/projects/f_sdk94_1/EnzymeModelling/Protease-Substrate-Design',
+                        help='Where to save output file for all commands')
+    parser.add_argument('-o', '--output_name', type=str,
+                        default='new.command.txt',
+                        help='output command file name')
+    parser.add_argument('-f', '--output_format', choices=['sequence','silent'],
+                        default='sequence',
+                        help='two options of output format, either sequence, or silent files. \
+                             Silent file mode will concatenate sequences which have same patterns into one same file.')
+    parser.add_argument('-os', '--output_structure_directory', type=str,
+                        default='/projects/f_sdk94_1/EnzymeModelling/Protease3C/2bof',
+                        help='where to put generated Rosetta structures')
+    parser.add_argument('-constraint', '--constraint_suffix', type=str,
+                        default="-site 215 -cons tev.cst -cr 39 74 144 -dprot 0 -dpep 0",
+                        help='Specify all flags for design_protease.py, e.g., -site 215 -cons tev.cst -cr 39 74 144 -dprot 0 -dpep 0 \
+                                -site specifies the starting pose index of threading, -cr specifies three catalytic residues.')
+    parser.add_argument('-jn', '--job_name', type=str,
+                        default=None,
+                        help='job name for Rosetta modeling')
+    parser.add_argument('-bs', '--batch_size', type=int,
+                        default=5,
+                        help='')
+    parser.add_argument('-cd', '--command_directory', type=str,
+                        default='/projects/f_sdk94_1/EnzymeModelling/Commands_OYDV')
     return parser.parse_args()
 
 def createCrys(p_wt, p, ind, root):
@@ -45,37 +70,105 @@ def createCrys(p_wt, p, ind, root):
         # p1Count = 0
         # p2Count = 0
         pp = list(p) #['Q','S']
-        p1_motif = p_wt[0] + ' ' + str(ind)
-        p2_motif = p_wt[1] + ' ' + str(ind+1)
+        p1_motif = letterMap[p_wt[0]] + ' ' + str(ind)
+        p2_motif = letterMap[p_wt[1]] + ' ' + str(ind+1)
         for line in fp:
-            if line.find(p1_motif) != -1:
+            if line.find('REMARK') != 1 and line.find(p1_motif) != -1:
                 p1Ind = line.find(p1_motif)
                 line = line[0:p1Ind] + letterMap[pp[0]] + line[p1Ind + 3:]
-            if line.find(p2_motif) != -1:
+            if line.find('REMARK') !=1 and line.find(p2_motif) != -1:
                 p2Ind = line.find(p2_motif)
                 line = line[0:p2Ind] + letterMap[pp[1]] + line[p2Ind + 3:]
             gp.write(line)
 
+def toCommands(args, info_set, constraint, mode = 'silent'):
+    output_name = args.output_name
+    script_path = args.script_path
+    p1_ind = args.p1_index_substrate
+    root = Path(args.starting_structures)
+    outStructFolder = args.output_structure_directory
+
+    # if mode == 'silent':
+    #     with open(os.path.join(out_path, output_name), 'w') as fp:
+    #         for silent in tmpSilent:
+    #             tmp = list(silent)
+    #             dotInd = silent.find('.')
+    #             p1p11 = ''.join(silent[dotInd-1] + silent[dotInd+1])
+    #             fp.write('python design_protease.py -s ' + os.path.join(crysPath, crysPath.split('/')[-1] + '_' + p1p11 + '.pdb') +
+    #             ' -od ' + silentPath + ' -st ' + os.path.join(out, 'new.sequence.txt') +
+    #             ' -sf ' + silent + " " + constraint + '\n')
+    # elif mode == 'sequence':
+    sequences = info_set[0]
+    mutant_list = info_set[1]
+    with open(os.path.join(script_path, output_name), 'w') as fp:
+        for i in range(len(sequences)):
+            mutant = mutant_list[i]
+            seq = sequences[i]
+            p1p11, newSeq = locate_p1p11(seq, p1_ind)
+            newStructPath = root.parent / (root.stem + '_' + p1p11 + '.pdb')
+            name = mutant + '_' + newSeq
+            if mutant == '':
+                name = newSeq
+            fp.write('python design_protease.py -s ' + str(newStructPath) +
+                    ' -od ' + outStructFolder + ' -seq ' + newSeq + ' -name ' + name +
+                    " " + constraint + '\n')
+
+def locate_p1p11(seq, p1_ind=None):
+    dotInd = seq.find('.')
+    p1p11 = ''.join(seq[dotInd - 1] + seq[dotInd + 1])
+    oriSeq = ''.join(seq[0:dotInd] + seq[dotInd + 1:])
+    if dotInd == -1:
+        dotInd = p1_ind
+        assert p1_ind != -1
+        p1p11 = seq[dotInd] + seq[dotInd+1]
+        oriSeq = seq
+    return p1p11, oriSeq
+
+def printToBatchCommand(args):
+    jobName = Path(args.info_file).stem
+    if args.job_name != None:
+        jobName = args.job_name
+    commandPath = args.command_directory
+    nBatch = args.batch_size
+    scriptPath = args.script_path
+    output_name = args.output_name
+
+    splitCommand = "python " + scriptPath + "/text_to_slurm.py -txt " + os.path.join(scriptPath, output_name) + " -job_name " + \
+          jobName + " -mem 12000 -path_operation " + scriptPath + " -path_sh " + \
+          commandPath + " -batch " + str(nBatch) + " -time 3-00:00:00"
+    os.system(splitCommand)
+    # print("python text_to_slurm.py -txt " + os.path.join(scriptPath, 'new.command.txt') + " -job_name " +
+    #       jobName + " -mem 12000 -path_operation " + scriptPath + " -path_sh " +
+    #       commandPath + " -batch " + str(nBatch) + " -time 3-00:00:00")
+
+def mkdir(path):
+    if not path.exists():
+        path.mkdir(parents=True)
+
 def main(args):
-    mutSeqLabel = args.info_file #info_files_path
-    # protease = args.info_file.split('-')[0]
+    mutSeqLabel = Path(args.info_file) #info_files_path
     p1_ind = args.p1_index_substrate
     p1_ind_pdb = args.p1_index_pdb
     starting_structure_path = Path(args.starting_structures)
     structure_save_path = starting_structure_path.parent
     p1p11_wt = args.p1p11_wt
+    format = args.output_format
+    constraintSuffix = args.constraint_suffix
+    commandPath = Path(args.command_directory)
+    mkdir(commandPath)
+
     # Use intermediate output from CleavEX as the input. Need to update in the future
     df = pd.read_csv(mutSeqLabel, index_col=0)
+    mutant_list = [''] * df.shape[0]
+    for column_name in df.columns:
+        if column_name.lower().find('mutant') != -1:
+            mutant_list = df[column_name]
     sequences = df.index.values
-
     p1p11s = []
     new_c = 0
     for seq in sequences:
         # protease = df.iloc[i, 0]
-        dotInd = seq.find('.')
-        if dotInd == -1:
-            dotInd = p1_ind
-            p1p11 = ''.join(seq[dotInd - 1] + seq[dotInd + 1])
+        p1p11,_ = locate_p1p11(seq, p1_ind)
         # check whether file exists or not
         if (structure_save_path / (starting_structure_path.stem + '_' + p1p11 + '.pdb')).is_file(): #, protease + '_' + p1p11 + '.pdb'
             # print('starting structure for {} exists! Skip it....'.format(p1p11))
@@ -84,6 +177,9 @@ def main(args):
             createCrys(p1p11_wt, p1p11, p1_ind_pdb, starting_structure_path)
             new_c += 1
     print('Swapping {} number of P1P11 combinations'.format(new_c))
+    # if format == 'silent':
+    toCommands(args, (sequences, mutant_list), constraintSuffix, mode=format)
+    printToBatchCommand(args)
 
 if __name__ == '__main__':
     args = parse_args()
