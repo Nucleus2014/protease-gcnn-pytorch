@@ -1,5 +1,5 @@
 # protease-gcnn-pytorch  
-This project is to present a graph-based convolutional neural network, called protein convolutional neural network (PGCN) to predict protease specificity. We propose a new creation of feature set that holds natural energy information for proteins, which could best represent protein activities. Pre-trained models for HCV/TEV are in *model/outputs*, and cleavage information are in *graph/classifications*.   
+This project is to present a graph-based convolutional neural network, called protein convolutional neural network (PGCN) to predict protease specificity. We propose a new creation of feature set that holds natural energy information for proteins, which could best represent protein activities. 
 
 ![](https://github.com/Nucleus2014/protease-gcnn-pytorch/blob/master/pipeline.png)
 
@@ -7,7 +7,7 @@ To use our method, first download this repository by using the following command
 ```git clone https://github.com/Nucleus2014/protease-gcnn-pytorch```  
 
 Rosetta models were generated using *design_protease.py* script. If you need source structures for pre-trained HCV/TEV models, please contact us.  
-Classification files for HCV/TEV/TEV_design graph generation are located in the *graph/classifications* folder.
+Pre-trained models for HCV/TEV are in [model/outputs](https://github.com/Nucleus2014/protease-gcnn-pytorch/tree/master/model/outputs), and cleavage information for HCV/TEV/TEV_design are in [graph/classifications folder](https://github.com/Nucleus2014/protease-gcnn-pytorch/tree/master/graph/classifications).   
 
 ## Step 1: Generation of graphs  
 Go to *graph* folder and excecute *protein_graph.py*:  
