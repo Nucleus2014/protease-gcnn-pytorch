@@ -60,7 +60,7 @@ python importance.py --dataset ${data} --hidden1 20 --depth 2 --linear 0 --att 0
 ```
 
 ## Variable Importance Analysis (Alternative)
-Here we propose a method to represent importance of nodes and edges. We refer variable importance method in random forest and you could use it by using following command:  
+Here we propose a method to represent importance of nodes and edges. You could leverage it by using following command:  
 ```
 cd analysis
 python importance.py --importance --dataset HCV_ternary_10_ang_aa_energy_7_energyedge_5_hbond --test_dataset HCV_ternary_10_ang_aa_energy_7_energyedge_5_hbond --hidden1 20 --depth 2 --linear 0 --att 0 --batch_size 500 --lr 0.005 --dropout 0.05 --weight_decay 5e-4 --save <model-path>
