@@ -8,6 +8,7 @@ To use our method, first download this repository by using the following command
 
 Rosetta models were generated using *design_protease.py* script. If you need source structures for pre-trained HCV/TEV models, please contact us.  
 Pre-trained models for HCV/TEV are in [model/outputs](https://github.com/Nucleus2014/protease-gcnn-pytorch/tree/master/model/outputs), and cleavage information for HCV/TEV/TEV_design are in [graph/classifications folder](https://github.com/Nucleus2014/protease-gcnn-pytorch/tree/master/graph/classifications).   
+Analysis scripts are in [analysis folder](https://github.com/Nucleus2014/protease-gcnn-pytorch/tree/master/analysis)
 
 ## Step 1: Generation of graphs  
 Go to *graph* folder and excecute *protein_graph.py*:  
