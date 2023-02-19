@@ -69,5 +69,5 @@ python importance.py --importance --dataset HCV_ternary_10_ang_aa_energy_7_energ
 In the paper, we compare GCNN + new generated feature set with five machine learning models. For those results (parameter tuning + train and test) using machine learning models,  
 ```
 cd helper
-python BenchmarkMLTrainAfterPGCN.py -data HCV_all_10_ang_aa_energy_7_energyedge_5_hbond_noProtID -feature complete -model ann -save outputs/hcv_ann"
+python BenchmarkMLTrainAfterPGCN.py -data HCV_all_10_ang_aa_energy_7_energyedge_5_hbond_flattened -feature complete -model ann -save outputs/hcv_ann"
 ```
