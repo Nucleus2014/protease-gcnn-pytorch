@@ -1,18 +1,19 @@
 # protease-gcnn-pytorch  
-This project is to present a graph-based convolutional neural network, called protein convolutional neural network (PGCN) to predict protease specificity. We propose a new creation of feature set that holds natural energy information for proteins, which could best represent protein activities. Pre-trained models for HCV/TEV are in *model/outputs*, and cleavage information are in *graph/classifications*.   
+This project is to present a graph-based convolutional neural network, called protein convolutional neural network (PGCN) to predict protease specificity. We propose a new creation of feature set that holds natural energy information for proteins, which could best represent protein activities. 
 
 ![](https://github.com/Nucleus2014/protease-gcnn-pytorch/blob/master/pipeline.png)
 
 To use our method, first download this repository by using the following command:  
 ```git clone https://github.com/Nucleus2014/protease-gcnn-pytorch```  
 
-Rosetta models were generated using *design_protease.py* script.  
+Rosetta models were generated using *design_protease.py* script. If you need source structures for pre-trained HCV/TEV models, please contact us.  
+Pre-trained models for HCV/TEV are in [model/outputs](https://github.com/Nucleus2014/protease-gcnn-pytorch/tree/master/model/outputs), and cleavage information for HCV/TEV/TEV_design are in [graph/classifications folder](https://github.com/Nucleus2014/protease-gcnn-pytorch/tree/master/graph/classifications).   
 
 ## Step 1: Generation of graphs  
 Go to *graph* folder and excecute *protein_graph.py*:  
 ```
 cd graph  
-srun python protein_graph.py -o <name of data> -pr_path /projects/f_sdk94_1/EnzymeModelling/TEVFinalStructures -class TEV.txt -prot TEV_QS.pdb -d 10  
+python protein_graph.py -o <name of data> -pr_path /projects/f_sdk94_1/EnzymeModelling/TEVFinalStructures -class TEV.txt -prot TEV_QS.pdb -d 10  
 ```
 ### Description of generated data  
 If the suffix is one of the below,  
@@ -59,10 +60,14 @@ python importance.py --dataset ${data} --hidden1 20 --depth 2 --linear 0 --att 0
 ```
 
 ## Variable Importance Analysis (Alternative)
-Here we propose a method to represent importance of nodes and edges. We refer variable importance method in random forest and you could use it by using following command:  
+Here we propose a method to represent importance of nodes and edges. You could leverage it by using following command:  
 ```
 cd analysis
 python importance.py --importance --dataset HCV_ternary_10_ang_aa_energy_7_energyedge_5_hbond --test_dataset HCV_ternary_10_ang_aa_energy_7_energyedge_5_hbond --hidden1 20 --depth 2 --linear 0 --att 0 --batch_size 500 --lr 0.005 --dropout 0.05 --weight_decay 5e-4 --save <model-path>
 ```
 ## Comparison with other machine learning methods
-In the paper, we compare GCNN + new generated feature set with five machine learning models + traditional feature set. For those results (parameter tuning + train and test) using machine learning models, see [ml-cleavage repository](https://github.com/Nucleus2014/ml-cleavage) in details. 
+In the paper, we compare GCNN + new generated feature set with five machine learning models. For those results (parameter tuning + train and test) using machine learning models,  
+```
+cd helper
+python BenchmarkMLTrainAfterPGCN.py -data HCV_all_10_ang_aa_energy_7_energyedge_5_hbond_flattened -feature complete -model ann -save outputs/hcv_ann"
+```
