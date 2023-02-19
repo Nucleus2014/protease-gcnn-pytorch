@@ -13,7 +13,7 @@ Pre-trained models for HCV/TEV are in [model/outputs](https://github.com/Nucleus
 Go to *graph* folder and excecute *protein_graph.py*:  
 ```
 cd graph  
-srun python protein_graph.py -o <name of data> -pr_path /projects/f_sdk94_1/EnzymeModelling/TEVFinalStructures -class TEV.txt -prot TEV_QS.pdb -d 10  
+python protein_graph.py -o <name of data> -pr_path /projects/f_sdk94_1/EnzymeModelling/TEVFinalStructures -class TEV.txt -prot TEV_QS.pdb -d 10  
 ```
 ### Description of generated data  
 If the suffix is one of the below,  
@@ -66,4 +66,8 @@ cd analysis
 python importance.py --importance --dataset HCV_ternary_10_ang_aa_energy_7_energyedge_5_hbond --test_dataset HCV_ternary_10_ang_aa_energy_7_energyedge_5_hbond --hidden1 20 --depth 2 --linear 0 --att 0 --batch_size 500 --lr 0.005 --dropout 0.05 --weight_decay 5e-4 --save <model-path>
 ```
 ## Comparison with other machine learning methods
-In the paper, we compare GCNN + new generated feature set with five machine learning models + traditional feature set. For those results (parameter tuning + train and test) using machine learning models, see [ml-cleavage repository](https://github.com/Nucleus2014/ml-cleavage) in details. 
+In the paper, we compare GCNN + new generated feature set with five machine learning models. For those results (parameter tuning + train and test) using machine learning models,  
+```
+cd helper
+python BenchmarkMLTrainAfterPGCN.py -data HCV_all_10_ang_aa_energy_7_energyedge_5_hbond_noProtID -feature complete -model ann -save outputs/hcv_ann"
+```
