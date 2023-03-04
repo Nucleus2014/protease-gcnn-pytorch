@@ -56,6 +56,8 @@ def parse_args():
                         help='')
     parser.add_argument('-cd', '--command_directory', type=str,
                         default='/projects/f_sdk94_1/EnzymeModelling/Commands_OYDV')
+    parser.add_argument('-mem', '--memory', type=int,
+                        default='Memory assigned to the processor')
     return parser.parse_args()
 
 def createCrys(p_wt, p, ind, root):
@@ -126,6 +128,7 @@ def locate_p1p11(seq, p1_ind=None):
 
 def printToBatchCommand(args):
     jobName = Path(args.info_file).stem
+    mem = args.memory
     if args.job_name != None:
         jobName = args.job_name
     commandPath = args.command_directory
@@ -138,7 +141,7 @@ def printToBatchCommand(args):
           commandPath + " -batch " + str(nBatch) + " -time 3-00:00:00"
     os.system(splitCommand)
     # print("python text_to_slurm.py -txt " + os.path.join(scriptPath, 'new.command.txt') + " -job_name " +
-    #       jobName + " -mem 12000 -path_operation " + scriptPath + " -path_sh " +
+    #       jobName + " -mem " + str(mem) + " -path_operation " + scriptPath + " -path_sh " +
     #       commandPath + " -batch " + str(nBatch) + " -time 3-00:00:00")
 
 def mkdir(path):
