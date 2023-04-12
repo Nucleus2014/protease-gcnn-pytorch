@@ -28,9 +28,11 @@ def parse_args():
     parser.add_argument("-index_p1", "--index_p1", type=int, default = 7, help="Index of p1 in the pdb, starting from 1.")
     parser.add_argument("-ub", "--upstream_buffer", type=int, default = 6, help="Upstream buffer from p1, starting from 1")
     parser.add_argument("-db", "--downstream_buffer", type=int, default = -1, help="Downstream buffer from p1, starting from 1")
-    parser.add_argument("-prot", "--protease", default=None, help="Protease pdb name.")
+    parser.add_argument("-prot", "--protein_template", default=None, \
+                        help="protein template pdb name. It only can be used when all graphs are the same size.")
     parser.add_argument("-d","--select_distance", type=int, default=10, help="Distance for NeighborSelector")
-    parser.add_argument("-is", "--is_silent", action='store_true', help="if input is in silent file mode, otherwise, just ignore this flag")
+    parser.add_argument("-is", "--is_silent", action='store_true', \
+                        help="if input is in silent file mode, otherwise, just ignore this flag")
     parser.add_argument("-test", "--testset", action='store_true', help="if needed to save generated test index. only applicable for first time generation")
     return parser.parse_args()
 
@@ -64,15 +66,8 @@ def makedirs(dirname):
     if not os.path.exists(dirname):
         os.makedirs(dirname)
 
-def graph_list_pickle(graph_ls, label_ls, sequence_ls, dataset_name, destination_path):
+def graph_list_pickle(graph_ls, label_ls, sequence_ls, dataset_name, destination_path, export_indices=False, testset=False):
     """Takes in a list of graphs and labels and pickles them in proper format. It also puts an index file in the directory"""
-    
-    # get population size, number of nodes, and number of node features
-    population = len(graph_ls)
-    N = graph_ls[0].V.shape[0]
-    F = graph_ls[0].V.shape[1]
-    M = graph_ls[0].A.shape[2]
-
     # find number of classifications possible
     s = set()
     for el in label_ls:
@@ -80,20 +75,34 @@ def graph_list_pickle(graph_ls, label_ls, sequence_ls, dataset_name, destination
     s = list(s)
     s.sort()
     num_classifiers = len(s)
-    
+
+    # get population size, number of nodes, and number of node features
+    population = len(graph_ls)
+    F = graph_ls[0].V.shape[1]
+    M = graph_ls[0].A.shape[2]
+    if export_indices:
+        N = max([graph_ls[i].V.shape[0] for i in range(population)])
+        pose_indices = np.full(shape = (population, N), fill_value = -1, dtype=np.int64)
+    else:
+        N = graph_ls[0].V.shape[0]
     # generate feature matrices
     x = np.zeros(shape = (population, N, F))
     y = np.zeros(shape = (population, num_classifiers), dtype = np.int64)
     graph = np.zeros(shape = (population, N, N, M))
-    
+
     # populate all elements
     for i in range(population):
-        x[i,:,:] = graph_ls[i].V
-        graph[i,:,:,:] = graph_ls[i].A
+        if not export_indices:
+            x[i,:,:] = graph_ls[i].V
+            graph[i,:,:,:] = graph_ls[i].A
+        else:
+            n = len(graph_ls[i].pose_indices)
+            x[i,0:n,:] = graph_ls[i].V
+            graph[i, 0:n, 0:n, :] = graph_ls[i].A
+            pose_indices[i, 0:n] = graph_ls[i].pose_indices
         one_hot_label_vec = np.zeros(num_classifiers)
         one_hot_label_vec[s.index(label_ls[i])] = 1
-        y[i,:] = one_hot_label_vec
-    
+        y[i, :] = one_hot_label_vec
     # get indices of the test set
     idx = [x for x in range(population)]
     np.random.shuffle(idx)
@@ -113,12 +122,15 @@ def graph_list_pickle(graph_ls, label_ls, sequence_ls, dataset_name, destination
     pkl.dump(s, open( os.path.join(destination_path,\
             "ind.{}.labelorder".format(dataset_name)), "wb"))
     # single proteases
-    pkl.dump([dataset_name] * x.shape[0], open(os.path.join(destination_path, \
-            "ind.{}.proteases".format(dataset_name)), "wb"))
-    if args.testset == True:
+    # pkl.dump([dataset_name] * x.shape[0], open(os.path.join(destination_path, \
+    #         "ind.{}.proteases".format(dataset_name)), "wb"))
+    if testset == True:
         # save test index
         np.savetxt(os.path.join(destination_path, \
                 "ind.{}.test.index".format(dataset_name)), test_index, fmt='%d')
+    if export_indices:
+        df = pd.DataFrame(pose_indices, index=sequence_ls)
+        df.to_csv(os.path.join(destination_path, "{}_graphs_pose_indices.csv".format(dataset_name)))
 
 def get_silent_file(sequence, path_to_silent_files):
     """This just returns an absolute path to the silent file (windows specific possibly) false if not found"""
@@ -303,6 +315,7 @@ class protein_graph:
         
         # if substrate or interface indices are given we will make vertice_arr specially tailored
         ls = substrate_indices + interface_indices
+        self.pose_indices = ls
         vertice_arr = np.array(ls)
         interface_indices = np.array(interface_indices)
         substrate_indices = np.array(substrate_indices)
@@ -470,8 +483,8 @@ class protein_graph:
             counter_M += 1
 
 # Goes from a sequence to a graph representation.
-def generate_graph(seq, pr_path, substrate_ind, interface_ind, params, sfxn):
-    pose = get_pose(seq, pr_path, is_silent=args.is_silent)
+def generate_graph(seq, pr_path, substrate_ind, interface_ind, params, sfxn, is_silent=False):
+    pose = get_pose(seq, pr_path, is_silent=is_silent)
     if type(pose) == type("string"):
         return pose
     g = protein_graph(pose = pose,
@@ -495,7 +508,7 @@ def main(args):
     index_p1 = args.index_p1
     ub = args.upstream_buffer
     db = args.downstream_buffer
-    protease = args.protease
+    protein_template = args.protein_template
     dis = args.select_distance
     
     logger = get_logger(logpath=os.path.join(data_path, 'logs'), filepath=os.path.abspath(__file__))
@@ -510,10 +523,13 @@ def main(args):
                 "interface_edge": True,
                 "covalent_edge": True,}
     logger.info("Features Info: {}".format(params))
-    if args.protease:
-        cutsite_ind, interface_ind = get_ind_from_protease(args.protease, pdb_path, index_p1, ub, db, dis, sfxn)
-    logger.info("Focus substrate indices are {}".format(','.join([str(u) for u in cutsite_ind])))
-    logger.info("Neighbor residues indices are {}".format(','.join([str(q) for q in interface_ind])))
+    if protein_template:
+        cutsite_ind, interface_ind = get_ind_from_protease(protein_template, pdb_path, index_p1, ub, db, dis, sfxn)
+        logger.info("Focus substrate indices are {}".format(','.join([str(u) for u in cutsite_ind])))
+        logger.info("Neighbor residues indices are {}".format(','.join([str(q) for q in interface_ind])))
+    else:
+        cutside_ind, interface_ind = [], []
+
     
     # Read in labels and sequences
     try:
@@ -532,7 +548,11 @@ def main(args):
     graphs = []
     for i in range(len(sequences)):
         seq = sequences[i]
-        graph = generate_graph(seq, pr_path, cutsite_ind, interface_ind, params, sfxn)
+        if args.protease:
+            graph = generate_graph(seq, pr_path, cutsite_ind, interface_ind, params, sfxn, is_silent=args.is_silent)
+        else:
+            cutside_ind, interface_ind = get_ind_from_protease(seq, pr_path, index_p1, ub, db, dis, sfxn)
+            graph = generate_graph(seq, pr_path, cutsite_ind, interface_ind, params, sfxn, is_silent=args.is_silent)
         if graph == "Error: No Silent":
             missed_sequences.append(seq)
         elif graph == "Error: Invalid Silent":
@@ -545,8 +565,10 @@ def main(args):
     logger.info("There were {} poses which loaded".format(len(graphs)))
     logger.info("There were {} poses missing due to silent files.".format(len(missed_sequences)))
     logger.info("There were {} poses which failed to be loaded.".format(len(error_sequences)))
-    
-    graph_list_pickle(graphs, label_final, seq_final, output, data_path)
+    if args.protease:
+        graph_list_pickle(graphs, label_final, seq_final, output, data_path, testset=args.testset)
+    else:
+        graph_list_pickle(graphs, label_final, seq_final, output, data_path, testset=args.testset, export_indices=True)
 
     
     
