@@ -565,7 +565,7 @@ def main(args):
     logger.info("There were {} poses which loaded".format(len(graphs)))
     logger.info("There were {} poses missing due to silent files.".format(len(missed_sequences)))
     logger.info("There were {} poses which failed to be loaded.".format(len(error_sequences)))
-    if args.protease:
+    if protein_template:
         graph_list_pickle(graphs, label_final, seq_final, output, data_path, testset=args.testset)
     else:
         graph_list_pickle(graphs, label_final, seq_final, output, data_path, testset=args.testset, export_indices=True)
