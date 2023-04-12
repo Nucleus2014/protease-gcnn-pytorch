@@ -528,7 +528,7 @@ def main(args):
         logger.info("Focus substrate indices are {}".format(','.join([str(u) for u in cutsite_ind])))
         logger.info("Neighbor residues indices are {}".format(','.join([str(q) for q in interface_ind])))
     else:
-        cutside_ind, interface_ind = [], []
+        cutsite_ind, interface_ind = [], []
 
     
     # Read in labels and sequences
@@ -551,7 +551,7 @@ def main(args):
         if protein_template:
             graph = generate_graph(seq, pr_path, cutsite_ind, interface_ind, params, sfxn, is_silent=args.is_silent)
         else:
-            cutside_ind, interface_ind = get_ind_from_protease(seq, pr_path, index_p1, ub, db, dis, sfxn)
+            cutsite_ind, interface_ind = get_ind_from_protease(seq, pr_path, index_p1, ub, db, dis, sfxn)
             graph = generate_graph(seq, pr_path, cutsite_ind, interface_ind, params, sfxn, is_silent=args.is_silent)
         if graph == "Error: No Silent":
             missed_sequences.append(seq)
