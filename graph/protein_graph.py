@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument("-index_p1", "--index_p1", type=int, default = 7, help="Index of p1 in the pdb, starting from 1.")
     parser.add_argument("-ub", "--upstream_buffer", type=int, default = 6, help="Upstream buffer from p1, starting from 1")
     parser.add_argument("-db", "--downstream_buffer", type=int, default = -1, help="Downstream buffer from p1, starting from 1")
-    parser.add_argument("-prot", "--protease", default="HCV.pdb", help="Protease pdb name.")
+    parser.add_argument("-prot", "--protease", default=None, help="Protease pdb name.")
     parser.add_argument("-d","--select_distance", type=int, default=10, help="Distance for NeighborSelector")
     parser.add_argument("-is", "--is_silent", action='store_true', help="if input is in silent file mode, otherwise, just ignore this flag")
     parser.add_argument("-test", "--testset", action='store_true', help="if needed to save generated test index. only applicable for first time generation")
@@ -510,8 +510,8 @@ def main(args):
                 "interface_edge": True,
                 "covalent_edge": True,}
     logger.info("Features Info: {}".format(params))
-    
-    cutsite_ind, interface_ind = get_ind_from_protease(args.protease, pdb_path, index_p1, ub, db, dis, sfxn)
+    if args.protease:
+        cutsite_ind, interface_ind = get_ind_from_protease(args.protease, pdb_path, index_p1, ub, db, dis, sfxn)
     logger.info("Focus substrate indices are {}".format(','.join([str(u) for u in cutsite_ind])))
     logger.info("Neighbor residues indices are {}".format(','.join([str(q) for q in interface_ind])))
     
