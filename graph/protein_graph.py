@@ -548,7 +548,7 @@ def main(args):
     graphs = []
     for i in range(len(sequences)):
         seq = sequences[i]
-        if args.protease:
+        if protein_template:
             graph = generate_graph(seq, pr_path, cutsite_ind, interface_ind, params, sfxn, is_silent=args.is_silent)
         else:
             cutside_ind, interface_ind = get_ind_from_protease(seq, pr_path, index_p1, ub, db, dis, sfxn)
