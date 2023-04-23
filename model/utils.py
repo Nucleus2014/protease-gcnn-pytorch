@@ -4,7 +4,7 @@
 import numpy as np
 import pickle as pkl
 import networkx as nx
-from scipy.sparse.linalg.eigen.arpack import eigsh
+from scipy.sparse.linalg import eigsh
 import sys
 import scipy.sparse as sp
 import os
@@ -185,7 +185,7 @@ def load_input(input_dataset_str, dataname_list, path=None): #input_type: 'train
                 objects.append(pkl.load(f))
     return objects
 
-def load_data(dataset_str, is_test=None, is_val=None, norm_type=True, scale_type='exp', noenergy=False, cv=0, test_format = 'individual', energy_only=False, data_path=None):
+def load_data(dataset_str, is_test=None, is_val=None, norm_type=True, scale_type='exp', noenergy=False, cv=0, test_format = 'individual', energy_only=False, seq_only=False,  data_path=None):
     #test_format only accepts 'index' or 'individual' or None
     cwd = os.getcwd()
     if test_format == 'individual': # this individual set will not be supposed to have y and model has been trained
@@ -197,6 +197,9 @@ def load_data(dataset_str, is_test=None, is_val=None, norm_type=True, scale_type
         labelorder = ['CLEAVED','UNCLEAVED']
         if energy_only==True:
             test_features = test_features[:,:,20:]
+        elif seq_only==True:
+            test_features = test_features[:,:,0:20]
+            test_adj = np.zeros_like(test_adj)
         if noenergy == False:
             test_features = transform(test_features, scale_type, ind = '(-8,-1)') # accept all features in this case except the last one
             test_adj = transform(test_adj, 'exp', ind = '(0,6)')
