@@ -34,6 +34,7 @@ def parse_args():
     parser.add_argument("-is", "--is_silent", action='store_true', \
                         help="if input is in silent file mode, otherwise, just ignore this flag")
     parser.add_argument("-test", "--testset", action='store_true', help="if needed to save generated test index. only applicable for first time generation")
+    parser.add_argument("-val", "--valset", action='store_true', help="if needed to save generated validation index. only applicable for first time generation")
     return parser.parse_args()
 
 def get_logger(logpath, filepath, package_files=[], displaying=True, saving=True, debug=False):
@@ -66,7 +67,7 @@ def makedirs(dirname):
     if not os.path.exists(dirname):
         os.makedirs(dirname)
 
-def graph_list_pickle(graph_ls, label_ls, sequence_ls, dataset_name, destination_path, export_indices=False, testset=False):
+def graph_list_pickle(graph_ls, label_ls, sequence_ls, dataset_name, destination_path, export_indices=False, testset=False, valset=False):
     """Takes in a list of graphs and labels and pickles them in proper format. It also puts an index file in the directory"""
     # find number of classifications possible
     s = set()
@@ -106,9 +107,16 @@ def graph_list_pickle(graph_ls, label_ls, sequence_ls, dataset_name, destination
     # get indices of the test set
     idx = [x for x in range(population)]
     np.random.shuffle(idx)
-    test_fraction = .3
-    cutoff = int(len(idx) * test_fraction)
-    test_index = idx[:cutoff]
+    if testset and valset:
+        cutoff = int(0.8 * len(idx))
+        cutoff_2 = int(0.9 * len(idx))
+        idx_test = idx[cutoff_2:]
+        idx_train = idx[:cutoff]
+        idx_val = idx[cutoff: cutoff_2]
+    else:
+        test_fraction = .3
+        cutoff = int(len(idx) * test_fraction)
+        idx_test = idx[:cutoff]
     
     # pickle everything
     pkl.dump(x, open( os.path.join(destination_path,\
@@ -127,7 +135,10 @@ def graph_list_pickle(graph_ls, label_ls, sequence_ls, dataset_name, destination
     if testset == True:
         # save test index
         np.savetxt(os.path.join(destination_path, \
-                "ind.{}.test.index".format(dataset_name)), test_index, fmt='%d')
+                "ind.{}.test.index".format(dataset_name)), idx_test, fmt='%d')
+    if valset == True:
+        np.savetxt(os.path.join(destination_path, \
+                "ind.{}.val.index".format(dataset_name)), idx_val, fmt='%d')
     if export_indices:
         df = pd.DataFrame(pose_indices, index=sequence_ls)
         df.to_csv(os.path.join(destination_path, "{}_graphs_pose_indices.csv".format(dataset_name)))
@@ -566,9 +577,9 @@ def main(args):
     logger.info("There were {} poses missing due to silent files.".format(len(missed_sequences)))
     logger.info("There were {} poses which failed to be loaded.".format(len(error_sequences)))
     if protein_template:
-        graph_list_pickle(graphs, label_final, seq_final, output, data_path, testset=args.testset)
+        graph_list_pickle(graphs, label_final, seq_final, output, data_path, testset=args.testset, valset=args.valset)
     else:
-        graph_list_pickle(graphs, label_final, seq_final, output, data_path, testset=args.testset, export_indices=True)
+        graph_list_pickle(graphs, label_final, seq_final, output, data_path, testset=args.testset, valset=args.valset, export_indices=True)
 
     
     
