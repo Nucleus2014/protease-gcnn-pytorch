@@ -526,7 +526,7 @@ def main(args):
     
     params = {"amino_acids":True,
                 "sinusoidal_encoding":0,
-                "coordinates": True,
+                "coordinates": False,
                 "substrate_boolean":True,
                 "energy_terms":[fa_intra_sol_xover4, fa_intra_rep, rama_prepro, omega, p_aa_pp, fa_dun, ref],
                 "energy_edge_terms":[fa_atr, fa_rep, fa_sol, fa_elec, lk_ball_wtd],
