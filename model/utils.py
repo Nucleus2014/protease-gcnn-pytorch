@@ -211,8 +211,8 @@ def load_data(dataset_str, is_test=None, is_val=None, norm_type=True, scale_type
         return test_adj, test_features, test_sequences, labelorder#, test_proteases, labelorder
     else:
         # loading training dataset
-        names = ['x', 'y', 'graph', 'sequences', 'proteases', 'labelorder']
-        features, y_arr, adj_ls, sequences, proteases, labelorder = tuple(load_input(dataset_str, names, path=data_path))
+        names = ['x', 'y', 'graph', 'sequences', 'labelorder']
+        features, y_arr, adj_ls, sequences, labelorder = tuple(load_input(dataset_str, names, path=data_path))
     
         # Split all datasets into testing, training, and validation. The split of this data is fixed for each dataset
         # because the numpy seed is fixed, currently the breakdown is train: 60, validation: 10, test: 30
@@ -257,9 +257,9 @@ def load_data(dataset_str, is_test=None, is_val=None, norm_type=True, scale_type
     y_arr = torch.LongTensor(y_arr)
     adj_ls = torch.FloatTensor(np.array(adj_ls))
     if is_val == None:
-        return adj_ls, features, y_arr, sequences, proteases, labelorder, train_mask, test_mask
+        return adj_ls, features, y_arr, sequences, labelorder, train_mask, test_mask
     else:
-        return adj_ls, features, y_arr, sequences, proteases, labelorder, train_mask, val_mask, test_mask
+        return adj_ls, features, y_arr, sequences, labelorder, train_mask, val_mask, test_mask
 
 
 def normalize(mx): 
