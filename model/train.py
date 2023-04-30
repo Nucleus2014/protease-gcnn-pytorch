@@ -79,11 +79,11 @@ is_cheby = True if args.model == 'chebyshev' else False
 no_energy = True if args.no_energy == True else False
 if args.val_dataset != None:
     logger.info('TripleSplit!')
-    adj_ls, features, labels, sequences, proteases, labelorder, train_mask, val_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only, seq_only = args.seq_only)
+    adj_ls, features, labels, sequences, labelorder, train_mask, val_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only, seq_only = args.seq_only)
     logger.info("|Training| {},|Validation| {}, |Testing| {}".format(np.sum(train_mask), np.sum(val_mask), np.sum(test_mask)))
     tmp_mask = train_mask
 else:
-    adj_ls, features, labels, sequences, proteases, labelorder, train_mask, val_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only, seq_only = args.seq_only) #scale_type determines node feature scale
+    adj_ls, features, labels, sequences, labelorder, train_mask, val_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only, seq_only = args.seq_only) #scale_type determines node feature scale
     tmp_mask = np.array([(not idx) for idx in val_mask], dtype=np.bool)
     # Size of Different Sets
     logger.info("|Training| {},|Testing| {}".format(np.sum(tmp_mask), np.sum(val_mask)))

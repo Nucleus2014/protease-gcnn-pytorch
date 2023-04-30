@@ -30,6 +30,8 @@ def parse_args():
     parser.add_argument("-db", "--downstream_buffer", type=int, default = -1, help="Downstream buffer from p1, starting from 1")
     parser.add_argument("-prot", "--protein_template", default=None, \
                         help="protein template pdb name. It only can be used when all graphs are the same size.")
+    parser.add_argument("-sc", "--substrate_chain_id", default=2, type=int,\
+                        help="chain ID of the substrate")
     parser.add_argument("-d","--select_distance", type=int, default=10, help="Distance for NeighborSelector")
     parser.add_argument("-is", "--is_silent", action='store_true', \
                         help="if input is in silent file mode, otherwise, just ignore this flag")
@@ -229,11 +231,11 @@ def get_pose(sequence, path, is_silent = True):
         ret = get_pose_from_pdb(sequence, path)
         return ret
 
-def index_substrate(pose):
+def index_substrate(pose, chain_id=2):
     """Takes a pose and returns the indices of the substrate."""
     # get substrate with built in selector
-    num_chains = pose.num_chains()
-    chain_name = get_chain_from_chain_id(num_chains, pose)
+    #num_chains = pose.num_chains()
+    chain_name = get_chain_from_chain_id(chain_id, pose)
     sub_sel = ChainSelector(chain_name)
     v1 = sub_sel.apply(pose)
     substrate_indices = []
@@ -242,11 +244,11 @@ def index_substrate(pose):
             substrate_indices.append(count + 1)
     return substrate_indices
 
-def index_substrate_cut_site(pose, index_p1 = 7, upstream_buffer = 6, downstream_buffer = 1, protease = None):
+def index_substrate_cut_site(pose, index_p1 = 7, upstream_buffer = 6, downstream_buffer = 1, substrate_chainID = 2, protease = None):
     """This function takes the ROSETTA INDEX of the P1 residue for a substrate within its chain, a pose, and
     the number of upstream and downstream residues to model, and returns the indices of the substrate. If the
     buffer actually goes OOB of the substrate, a None type for that ind is instead returned for 0 pad modelling"""
-    ind_sub = index_substrate(pose)
+    ind_sub = index_substrate(pose, chain_id=substrate_chainID)
     ind_active = []
     for i in range(-upstream_buffer, downstream_buffer):
         index_interest = i + index_p1
@@ -282,12 +284,12 @@ def index_interface(pose,
             
     return interface_indices
 
-def get_ind_from_protease(protease_name, pdb_path, index_p1, ub, db, dis, sfxn):
+def get_ind_from_protease(protease_name, pdb_path, index_p1, ub, db, sc, dis, sfxn):
     # load default pose as original
     pose = pose_from_pdb(os.path.join(pdb_path, protease_name))
     sfxn.score(pose)
     #substrate_ind = index_substrate(pose) #the whole substrate
-    cutsite_ind = index_substrate_cut_site(pose, index_p1, upstream_buffer=ub, downstream_buffer=db) #p2-p6 on the substrate
+    cutsite_ind = index_substrate_cut_site(pose, index_p1, upstream_buffer=ub, downstream_buffer=db, substrate_chainID=sc) #p2-p6 on the substrate
     interface_ind = index_interface(pose, cutsite_ind, dis)
     return cutsite_ind, interface_ind
 
@@ -519,6 +521,7 @@ def main(args):
     index_p1 = args.index_p1
     ub = args.upstream_buffer
     db = args.downstream_buffer
+    sc = args.substrate_chain_id
     protein_template = args.protein_template
     dis = args.select_distance
     
@@ -535,7 +538,7 @@ def main(args):
                 "covalent_edge": True,}
     logger.info("Features Info: {}".format(params))
     if protein_template:
-        cutsite_ind, interface_ind = get_ind_from_protease(protein_template, pdb_path, index_p1, ub, db, dis, sfxn)
+        cutsite_ind, interface_ind = get_ind_from_protease(protein_template, pdb_path, index_p1, ub, db, sc, dis, sfxn)
         logger.info("Focus substrate indices are {}".format(','.join([str(u) for u in cutsite_ind])))
         logger.info("Neighbor residues indices are {}".format(','.join([str(q) for q in interface_ind])))
     else:
@@ -562,7 +565,7 @@ def main(args):
         if protein_template:
             graph = generate_graph(seq, pr_path, cutsite_ind, interface_ind, params, sfxn, is_silent=args.is_silent)
         else:
-            cutsite_ind, interface_ind = get_ind_from_protease(seq, pr_path, index_p1, ub, db, dis, sfxn)
+            cutsite_ind, interface_ind = get_ind_from_protease(seq, pr_path, index_p1, ub, db, sc, dis, sfxn)
             graph = generate_graph(seq, pr_path, cutsite_ind, interface_ind, params, sfxn, is_silent=args.is_silent)
         if graph == "Error: No Silent":
             missed_sequences.append(seq)
