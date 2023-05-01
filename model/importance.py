@@ -61,6 +61,7 @@ parser.add_argument('--weight', type=str, default='pre',choices=['pre','post'])
 parser.add_argument('--dim_des',action='store_true',default=False)
 parser.add_argument('--new', action='store_true', default=False)
 parser.add_argument('--energy_only', action='store_true', default=False)
+parser.add_argument('--seq_only',action='store_true',default=False)
 parser.add_argument('--save', type=str, default='./experiment1')
 parser.add_argument('--importance',action='store_true', default = False, help='Whether calculate each variable''s importance.')
 args = parser.parse_args()
@@ -149,16 +150,16 @@ no_energy = True if args.no_energy == True else False
 if args.new == False:
     if args.val_dataset != None:
         logger.info('TripleSplit!')
-        adj_ls, features, labels, sequences, proteases, labelorder, train_mask, val_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only)
+        adj_ls, features, labels, sequences, labelorder, train_mask, val_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only, seq_only=args.seq_only)
         logger.info("|Training| {},|Validation| {}, |Testing| {}".format(np.sum(train_mask), np.sum(val_mask), np.sum(test_mask)))
         tmp_mask = train_mask
     else:
-        adj_ls, features, labels, sequences, proteases, labelorder, train_mask, val_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only) #scale_type determines node feature scale
+        adj_ls, features, labels, sequences, labelorder, train_mask, val_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only, seq_only = args.seq_only) #scale_type determines node feature scale
         tmp_mask = np.array([(not idx) for idx in val_mask], dtype=np.bool)
         # Size of Different Sets
         logger.info("|Training| {},|Testing| {}".format(np.sum(tmp_mask), np.sum(val_mask)))
 else:
-    adj_ls, features, sequences, labelorder = load_data(args.dataset, norm_type=True, energy_only=is_energy_only, noenergy=args.no_energy, data_path=args.data_path) 
+    adj_ls, features, sequences, labelorder = load_data(args.dataset, norm_type=True, energy_only=is_energy_only, seq_only=args.seq_only, noenergy=args.no_energy, data_path=args.data_path) 
 
 cheby_params = args.max_degree if args.model == 'chebyshev' else None
 weight_mode = args.weight
