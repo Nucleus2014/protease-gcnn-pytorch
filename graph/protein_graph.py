@@ -137,10 +137,10 @@ def graph_list_pickle(graph_ls, label_ls, sequence_ls, dataset_name, destination
     if testset == True:
         # save test index
         np.savetxt(os.path.join(destination_path, \
-                "ind.{}.test.index".format(dataset_name)), idx_test, fmt='%d')
+                "ind.{}.trisplit.test.index".format(dataset_name)), idx_test, fmt='%d')
     if valset == True:
         np.savetxt(os.path.join(destination_path, \
-                "ind.{}.val.index".format(dataset_name)), idx_val, fmt='%d')
+                "ind.{}.trisplit.val.index".format(dataset_name)), idx_val, fmt='%d')
     if export_indices:
         df = pd.DataFrame(pose_indices, index=sequence_ls)
         df.to_csv(os.path.join(destination_path, "{}_graphs_pose_indices.csv".format(dataset_name)))
