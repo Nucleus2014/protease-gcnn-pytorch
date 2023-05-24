@@ -49,14 +49,14 @@ class GCN(torch.nn.Module):
         for nhid in range(depth):
             self.gcn_layers.append(GCNConv(nin, self.hidden[nhid]))
             layer = nn.Sequential()
-            # layer.append(norm(ch, weight)) # FIXME
+            # layer.append(norm(ch, weight)) # CSY: I remove the norm layer
             layer.append(nn.ReLU())
             self.after_gcn.append(layer)
             nin = int(self.hidden[nhid])
 
-        nin_full = (
-            self.hidden[-1] * nnode
-        )  # in_features for fully connected layers, which is gcn output * number of node
+        # nin_full = (
+        #     self.hidden[-1] * nnode
+        # )  # in_features for fully connected layers, which is gcn output * number of node
         self.linear = nn.Sequential()
         # if linear != 0:
         #     self.linear.append(nn.Linear(nin_full, int(linear)))
