@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import GCNConv, GATConv
 from torch.nn import functional as F
 
 
@@ -83,6 +83,71 @@ class GCN(torch.nn.Module):
             for i in range(len(self.gcn_layers)):
                 x = self.gcn_layers[i](x, data.edge_index, edge_attr)
                 x = self.after_gcn[i](x)
+            x = x.view(x.shape[0],x.shape[1],-1,1).expand(x.shape[0],x.shape[1],x.shape[2],self.mfeat)
+            x = torch.transpose(x,-1,-3).transpose(x,-3,-2)
+            x = self.edge_weight(x).view(x.shape[0],x.shape[1],-1)
+        x = F.dropout(x, self.dropout, training=self.training)
+        # x = x.flatten()
+        x = self.linear(x)
+        return x
+    
+   class GAT(torch.nn.Module):
+    def __init__(
+        self,
+        nnode,
+        nfeat,
+        mfeat,
+        hidden1,
+        linear,
+        depth,
+        nclass,
+        dropout,
+        weight,
+        is_des,
+    ):
+        super().__init__()
+        nin = nfeat  # in_features
+        self.dropout = dropout
+        self.mfeat = mfeat
+        self.weight = weight
+        if self.weight == "pre":
+            ch = nnode
+        elif self.weight == "post":
+            ch = mfeat
+        if is_des == True:
+            self.hidden = [50, 50, 50, 50, 50, 20, 20, 20, 20, 20]
+        else:
+            self.hidden = [hidden1] * depth
+        self.gat_layers = nn.ModuleList()  # build a list for gcnn layers
+        self.after_gat = nn.ModuleList()
+        for nhid in range(depth):
+            self.gat_layers.append(GCNConv(nin, self.hidden[nhid]))
+            layer = nn.Sequential()
+            # layer.append(norm(ch, weight)) # CSY: I remove the norm layer
+            layer.append(nn.ReLU())
+            self.after_gat.append(layer)
+            nin = int(self.hidden[nhid])
+            
+        if linear != 0:
+            self.linear.append(nn.Linear(self.hidden[-1], int(linear)))
+            self.linear.append(nn.Linear(int(linear), nclass))
+        else:
+            self.linear.append(nn.Linear(self.hidden[-1], nclass))
+
+        self.edge_weight = nn.Linear(mfeat, 1, bias=False)
+
+    def forward(self, data):
+        x = data.x
+        # data.edge_attr is in shape [E, mfeat]
+        if self.weight == "pre":
+            edge_attr = self.edge_weight(data.edge_attr)
+            for i in range(len(self.gcn_layers)):
+                x = self.gat_layers[i](x, data.edge_index, edge_attr)
+                x = self.after_gat[i](x)
+        elif self.weight == "post":
+            for i in range(len(self.gcn_layers)):
+                x = self.gat_layers[i](x, data.edge_index, edge_attr)
+                x = self.after_gat[i](x)
             x = x.view(x.shape[0],x.shape[1],-1,1).expand(x.shape[0],x.shape[1],x.shape[2],self.mfeat)
             x = torch.transpose(x,-1,-3).transpose(x,-3,-2)
             x = self.edge_weight(x).view(x.shape[0],x.shape[1],-1)
