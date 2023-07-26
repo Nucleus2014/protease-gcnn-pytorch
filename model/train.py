@@ -52,6 +52,7 @@ parser.add_argument('--dropout', type=float, default=0.1,
 parser.add_argument('--no_energy', action='store_true', default=False)
 parser.add_argument('--energy_only', action='store_true', default=False)
 parser.add_argument('--seq_only', action='store_true', default=False)
+parser.add_argument('--feature',choices=['s+d','s','e','s+e'],default='s+e')
 parser.add_argument('--scale_type', choices = ['exp','minmax'], default='exp')
 parser.add_argument('--test_dataset',type=str, default=None)
 parser.add_argument('--val_dataset', type=str, default=None)
@@ -79,11 +80,11 @@ is_cheby = True if args.model == 'chebyshev' else False
 no_energy = True if args.no_energy == True else False
 if args.val_dataset != None:
     logger.info('TripleSplit!')
-    adj_ls, features, labels, sequences, labelorder, train_mask, val_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only, seq_only = args.seq_only)
+    adj_ls, features, labels, sequences, labelorder, train_mask, val_mask, test_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only, seq_only = args.seq_only, feature_type=args.feature)
     logger.info("|Training| {},|Validation| {}, |Testing| {}".format(np.sum(train_mask), np.sum(val_mask), np.sum(test_mask)))
     tmp_mask = train_mask
 else:
-    adj_ls, features, labels, sequences, labelorder, train_mask, val_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only, seq_only = args.seq_only) #scale_type determines node feature scale
+    adj_ls, features, labels, sequences, labelorder, train_mask, val_mask = load_data(args.dataset, is_test=args.test_dataset, is_val=args.val_dataset, norm_type=True, scale_type=args.scale_type, test_format = 'index', energy_only = args.energy_only, seq_only = args.seq_only, feature_type=args.feature) #scale_type determines node feature scale
     tmp_mask = np.array([(not idx) for idx in val_mask], dtype=np.bool)
     # Size of Different Sets
     logger.info("|Training| {},|Testing| {}".format(np.sum(tmp_mask), np.sum(val_mask)))
@@ -111,7 +112,8 @@ logger.info('Number of parameters: {}'.format(count_parameters(model)))
 
 batch_size = args.batch_size
 
-criterion = nn.CrossEntropyLoss()
+#criterion = nn.CrossEntropyLoss()
+criterion = nn.NLLLoss()
 optimizer = optim.Adam(model.parameters(),lr=args.lr, weight_decay=args.weight_decay)
 #optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 nepoch = args.epochs #willbe useless if set earlystop
@@ -172,7 +174,7 @@ with experiment.train():
 #        logger.info("Test accuracy is:" + str(test_acc))
         
         if val_acc > best_acc:
-            torch.save({'epoch': i+1,'state_dict': model.state_dict()}, os.path.join(args.save, 'model_for_test_seed_' + str(args.seed) + '_hidden_' + str(args.hidden1) + '_linear_' + str(args.linear) +'_lr_'+str(args.lr)+'_wd_'+str(args.weight_decay)+'_bs_'+str(args.batch_size)+ '_dt_' + str(args.dropout) + '.pth'))
+            torch.save({'epoch': i+1,'state_dict': model.state_dict(),'optimizer_state_dict': optimizer.state_dict(), 'loss':loss}, os.path.join(args.save, 'model_for_test_seed_' + str(args.seed) + '_hidden_' + str(args.hidden1) + '_linear_' + str(args.linear) +'_lr_'+str(args.lr)+'_wd_'+str(args.weight_decay)+'_bs_'+str(args.batch_size)+ '_dt_' + str(args.dropout) + '.pth'))
             pkl.dump(logits_test,open(os.path.join(args.save, 'logits_val_seed_' + str(args.seed) + '_hidden_' + str(args.hidden1) + '_linear_' + str(args.linear) +'_lr_'+str(args.lr)+'_wd_'+str(args.weight_decay)+'_bs_'+str(args.batch_size)+ '_dt_' + str(args.dropout)),'wb'))
             best_acc = val_acc
             best_epo = i

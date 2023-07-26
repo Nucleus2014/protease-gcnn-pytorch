@@ -1,0 +1,6 @@
+Sequence	Result
+oydv_EKTKEQA_2.pdb	UNCLEAVED
+oydv_EKTKEQA_1.pdb	UNCLEAVED
+oydv_EKTKEQA_4.pdb	UNCLEAVED
+oydv_EKTKEQA_0.pdb	UNCLEAVED
+oydv_EKTKEQA_3.pdb	UNCLEAVED
