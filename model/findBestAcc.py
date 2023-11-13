@@ -25,12 +25,16 @@ from models import *
 
 def findBestAcc(dataset = 'HCV_WT_binary_10_ang_aa_energy_7_energyedge_5_hbond', 
                 testset = 'HCV_WT_binary_10_ang_aa_energy_7_energyedge_5_hbond', 
-                is_energy_only = True, hidden = 20, 
+                is_energy_only = True, hidden = 20, valset = None, 
                modelPath = '/scratch/cl1205/protease-gcnn-pytorch/model/outputs/tt_finalize_20220211/HCV_WT_binary_10_ang_energy_7_energyedge_5_hbond'):
-    adj_ls, features, labels, sequences, proteases, labelorder, train_mask, test_mask = load_data(dataset, is_test=testset, norm_type=False, test_format = 'split', energy_only=is_energy_only, noenergy=False)
+    if valset == None:
+        adj_ls, features, labels, sequences, proteases, labelorder, train_mask, test_mask = load_data(dataset, is_test=testset, norm_type=True, test_format = 'split', energy_only=is_energy_only, noenergy=False)
+    else:
+        adj_ls, features, labels, sequences, proteases, labelorder, train_mask, val_mask, test_mask = load_data(dataset, is_test=testset, is_val=valset, norm_type=True, test_format = 'split', energy_only=is_energy_only, noenergy=False)
 
     folder = modelPath # /projects/f_sdk94_1/PGCN/outputs/tt_finalize_20210413
-    max_acc = 0
+    max_acc = [0,0,0]
+    path_fin = ["","",""]
     for root, dirs, files in os.walk(folder):
         for name in files:
             if name.split('.')[-1] == 'pth':
@@ -41,6 +45,7 @@ def findBestAcc(dataset = 'HCV_WT_binary_10_ang_aa_energy_7_energyedge_5_hbond',
                 wd = float(name.split('_')[-5])
                 lr = float(name.split('_')[-7])
                 dt = float(name.split('_')[-1][0:-4])
+                seed = int(name.split('_')[4])
                 model = GCN(nnode=features.shape[1],
                             nfeat=features.shape[2],
                             mfeat=adj_ls.shape[3],
@@ -61,15 +66,19 @@ def findBestAcc(dataset = 'HCV_WT_binary_10_ang_aa_energy_7_energyedge_5_hbond',
                                             dropout=dt, 
                                             path_save=path, 
                                             new=False)
-                if acc_test > max_acc:
+                if acc_test > max_acc[seed-1]:
                     logit_test_fin = logit_test
-                    max_acc = acc_test
-                    path_fin = path
+                    max_acc[seed-1] = acc_test
+                    path_fin[seed-1] = path
     return logit_test_fin, max_acc, path_fin
 
 def test(X, graph, y, testmask, model_for_test, hidden1, linear, learning_rate, weight_decay, batch_size, dropout, path_save,new=False):
     #checkpoint = torch.load(os.path.join(path_save, 'model_for_test_seed_' + str(args.seed) + '_hidden_' + str(hidden1) + '_linear_' + str(linear) +'_lr_'+str(learning_rate)+'_wd_'+str(weight_decay)+'_bs_'+str(batch_size)+ '_dt_' + str(dropout) + '.pth'))
-    checkpoint = torch.load(path_save)
+    try:
+        checkpoint = torch.load(path_save)
+    except:
+        print(path_save)
+        return None,0
     
     model_for_test.load_state_dict(checkpoint['state_dict'])
     if new == False:
@@ -94,10 +103,13 @@ def test(X, graph, y, testmask, model_for_test, hidden1, linear, learning_rate, 
             logits_test = model_for_test(X, graph)
             return logits_test
 
-#for i in ['A171T','D183A','Triple','all']:
-#    logit, acc, path = findBestAcc('HCV_' + i + '_binary_10_ang_aa_energy_7_energyedge_5_hbond','HCV_' + i + '_binary_10_ang_aa_energy_7_energyedge_5_hbond',
-#           True, 'HCV_' + i + '_binary_10_ang_energy_7_energyedge_5_hbond')
-#    print(acc, path)
+for i in ['WT','A171T','D183A','Triple','all']:
+    logit, acc, path = findBestAcc('HCV_' + i + '_binary_10_ang_aa',
+                                   'HCV_' + i + '_binary_10_ang_aa',
+                                   False, 20,
+                                   'HCV_' + i + '_binary_10_ang_aa',
+                                   '/scratch/cl1205/protease-gcnn-pytorch/model/outputs/hcv_20220708_trisplit_seqOnly/HCV_' + i + '_binary_10_ang_aa')
+    print(acc, path)
 
 #for i in ['WT','A171T','D183A','Triple', 'all']:
     #logit, acc, path = findBestAcc('TEV_' + i + '_binary_10_ang_aa_energy_7_energyedge_5_hbond', 
@@ -115,18 +127,20 @@ def test(X, graph, y, testmask, model_for_test, hidden1, linear, learning_rate, 
 #    logit, acc, path = findBestAcc('TEV_' + 'WT' + '_binary_10_ang_aa_energy_7_energyedge_5_hbond',
 #                                   'TEV_' + 'WT' + '_binary_10_ang_aa_energy_7_energyedge_5_hbond',
 #                                   False, 10, 
-#                                   '/scratch/cl1205/protease-gcnn-pytorch/model/outputs/tt_tev_20220403/TEV_' \
+#                                  '/scratch/cl1205/protease-gcnn-pytorch/model/outputs/tt_tev_20220403/TEV_' \
 #                                   + 'WT' + '_binary_10_ang_aa_energy_7_energyedge_5_hbond_epoch_' + i + '/')
 #for model in ['all']:
 #    logit, acc, path = findBestAcc('TEV_' + model + '_binary_10_ang_aa_energy_7_energyedge_5_hbond',
 #                                   'TEV_' + model + '_binary_10_ang_aa_energy_7_energyedge_5_hbond',
 #                                   True, 20,
-#                                   '/scratch/cl1205/protease-gcnn-pytorch/model/outputs/tt_tev_20220522_final/TEV_' + model + '_binary_10_ang_energy_7_energyedge_5_hbond/') 
-
+#                                   'TEV_' + model + '_binary_10_ang_aa_energy_7_energyedge_5_hbond',
+#                                   '/scratch/cl1205/protease-gcnn-pytorch/model/outputs/tt_tev_20220629_trisplit/TEV_' + model + '_binary_10_ang_energy_7_energyedge_5_hbond/')
 #    print(acc, path)
 
-for i in ['all']:
-    logit, acc, path = findBestAcc('HCV_' + i + '_binary_10_ang_aa_energy_7_energyedge_5_hbond',
-                                   'HCV_' + i + '_binary_10_ang_aa_energy_7_energyedge_5_hbond',
-                                   False, 20, '/projects/f_sdk94_1/PGCN/outputs/tt_finalize_20210413/HCV_' + i + '_binary_10_ang_aa_energy_7_energyedge_5_hbond')
-    print(acc, path)
+#for model in ['all']:
+#    logit, acc, path = findBestAcc('TEV_' + model + '_binary_10_ang_aa',
+#                                   'TEV_' + model + '_binary_10_ang_aa',
+#                                   False, 20,
+#                                   'TEV_' + model + '_binary_10_ang_aa',
+#                                   '/scratch/cl1205/protease-gcnn-pytorch/model/outputs/tt_tev_20220629_trisplit/TEV_' + model + '_binary_10_ang_aa_/')
+#    print(acc, path)

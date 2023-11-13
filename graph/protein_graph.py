@@ -30,6 +30,10 @@ def parse_args():
     parser.add_argument("-db", "--downstream_buffer", type=int, default = -1, help="Downstream buffer from p1, starting from 1")
     parser.add_argument("-prot", "--protein_template", default=None, \
                         help="protein template pdb name. It only can be used when all graphs are the same size.")
+    parser.add_argument("-subind", "--substrate_indices", default=None, \
+                        help="Instead of selecting residues using distance threshold, directly give pose indices.")
+    parser.add_argument("-intind", "--interface_indices", default=None, \
+                        help="Instead of selecting residues using distance threshold, directly give pose indices.")
     parser.add_argument("-sc", "--substrate_chain_id", default=2, type=int,\
                         help="chain ID of the substrate")
     parser.add_argument("-d","--select_distance", type=int, default=10, help="Distance for NeighborSelector")
@@ -72,12 +76,15 @@ def makedirs(dirname):
 def graph_list_pickle(graph_ls, label_ls, sequence_ls, dataset_name, destination_path, export_indices=False, testset=False, valset=False):
     """Takes in a list of graphs and labels and pickles them in proper format. It also puts an index file in the directory"""
     # find number of classifications possible
+    #if args.classifiers is None:
     s = set()
     for el in label_ls:
         s.add(el)
     s = list(s)
     s.sort()
-    num_classifiers = len(s)
+#    num_classifiers = len(s)
+ #   else:
+  #          num_classifiers = len(args.classifiers)
 
     # get population size, number of nodes, and number of node features
     population = len(graph_ls)
@@ -95,6 +102,7 @@ def graph_list_pickle(graph_ls, label_ls, sequence_ls, dataset_name, destination
 
     # populate all elements
     for i in range(population):
+        print(sequence_ls[i])
         if not export_indices:
             x[i,:,:] = graph_ls[i].V
             graph[i,:,:,:] = graph_ls[i].A
@@ -327,11 +335,14 @@ class protein_graph:
                 raise PathNotDeclaredError("Failed to generate pose, file path invalid or other issue")
         
         # if substrate or interface indices are given we will make vertice_arr specially tailored
-        ls = substrate_indices + interface_indices
+        if substrate_indices == None:
+            ls = interface_indices
+        else:
+            ls = substrate_indices + interface_indices
+            substrate_indices = np.array(substrate_indices)
         self.pose_indices = ls
         vertice_arr = np.array(ls)
         interface_indices = np.array(interface_indices)
-        substrate_indices = np.array(substrate_indices)
         
         # Get All Node Features
         if params["amino_acids"]: num_amino = 20
@@ -363,6 +374,8 @@ class protein_graph:
         if params["interface_edge"]: M += 1
         if params["covalent_edge"]: M += 1
         if params["hbond"]: M += 1
+        if params["distance"]: M += 25
+        #M += np.sum(params['distance'])
         # initialize A (Multiple Adj. Mat. NxNxM)
         self.A = np.zeros(shape = (N, N, M))
         counter_F = 0
@@ -434,10 +447,24 @@ class protein_graph:
         if params["coordinates"]:
             for i in range(len(vertice_arr)):
                 if vertice_arr[i] != None:
-                    C_alpha_coord = np.array(pose.residue(vertice_arr[i]).xyz("CA"))
-                    self.V[i, counter_F : (counter_F + 3)] = C_alpha_coord
-            counter_F += 3
-            print(self.V[i, counter_F : (counter_F + 3)])
+                    # N CA C O CB
+                    for atm in ['N','CA','C','O','CB']:
+                        try: 
+                            coord = np.array(pose.residue(vertice_arr[i]).xyz(atm))
+                        except RuntimeError:
+                            CA_coord = np.array(pose.residue(vertice_arr[i]).xyz("CA"))
+                            N_coord = np.array(pose.residue(vertice_arr[i]).xyz("N"))
+                            C_coord = np.array(pose.residue(vertice_arr[i]).xyz("C"))
+                            b = CA_coord - N_coord
+                            c = C_coord - CA_coord
+                            a = np.cross(b,c)
+                            coord = -0.58273431*a + 0.56802827*b - 0.54067466*c + CA_coord
+                        self.V[i, counter_F : (counter_F + 3)] = coord
+                        counter_F += 3
+            #print(self.V[i, counter_F : (counter_F + 3)])
+
+        
+        
         # New node feature
         """
         if params["new feature"]:
@@ -495,6 +522,37 @@ class protein_graph:
                     self.A[i + 1, i, counter_M] = 1
             counter_M += 1
 
+        if params["distance"]:
+            atom_types = np.array(["N","CA","C","O"])
+            # first, get coordinates arrays
+            rsd_coords = np.zeros((len(vertice_arr), 5, 3))
+            for i in range(len(vertice_arr)):
+                rsd = pose.residue(vertice_arr[i])
+                for k,atm in enumerate(atom_types):
+                    coord = np.array(pose.residue(vertice_arr[i]).xyz(atm))
+                    rsd_coords[i, k,:] = coord
+            for i in range(len(vertice_arr)):
+                try:
+                    CB_coord = np.array(pose.residue(vertice_arr[i]).xyz("CB"))
+                except RuntimeError:
+                    b = rsd_coords[i,1,:] - rsd_coords[i,0,:]
+                    c = rsd_coords[i,2,:] - rsd_coords[i,1,:]
+                    a = np.cross(b,c)
+                    CB_coord = -0.58273431*a + 0.56802827*b - 0.54067466*c + rsd_coords[i,1,:]
+                rsd_coords[i, 4, :] = CB_coord
+            for ki in range(5):
+                for kj in range(5):
+                    for i in range(len(vertice_arr)):
+                        for j in range(i, len(vertice_arr)):
+                            if vertice_arr[i] != None and vertice_arr[j] != None:
+                                if i != j and ki != kj:
+                                    coord1 = rsd_coords[i,ki,:]
+                                    coord2 = rsd_coords[j,kj,:]
+                                    dis = np.linalg.norm(coord1 - coord2)
+                                    self.A[i, j, counter_M] = dis
+                                    self.A[j, i, counter_M] = dis 
+                    counter_M += 1
+
 # Goes from a sequence to a graph representation.
 def generate_graph(seq, pr_path, substrate_ind, interface_ind, params, sfxn, is_silent=False):
     pose = get_pose(seq, pr_path, is_silent=is_silent)
@@ -524,12 +582,14 @@ def main(args):
     sc = args.substrate_chain_id
     protein_template = args.protein_template
     dis = args.select_distance
-    
+    substrate_indices = args.substrate_indices
+    interface_indices = args.interface_indices
     logger = get_logger(logpath=os.path.join(data_path, 'logs'), filepath=os.path.abspath(__file__))
     
     params = {"amino_acids":True,
                 "sinusoidal_encoding":0,
                 "coordinates": False,
+                "distance": False, # N, CA,C,O,CB distance mask
                 "substrate_boolean":True,
                 "energy_terms":[fa_intra_sol_xover4, fa_intra_rep, rama_prepro, omega, p_aa_pp, fa_dun, ref],
                 "energy_edge_terms":[fa_atr, fa_rep, fa_sol, fa_elec, lk_ball_wtd],
@@ -538,9 +598,15 @@ def main(args):
                 "covalent_edge": True,}
     logger.info("Features Info: {}".format(params))
     if protein_template:
-        cutsite_ind, interface_ind = get_ind_from_protease(protein_template, pdb_path, index_p1, ub, db, sc, dis, sfxn)
-        logger.info("Focus substrate indices are {}".format(','.join([str(u) for u in cutsite_ind])))
-        logger.info("Neighbor residues indices are {}".format(','.join([str(q) for q in interface_ind])))
+        if substrate_indices == None and interface_indices == None:
+            cutsite_ind, interface_ind = get_ind_from_protease(protein_template, pdb_path, index_p1, ub, db, sc, dis, sfxn)
+        else:
+            cutsite_ind = [int(x) for x in substrate_indices.strip('][').split(', ')]
+            interface_ind = [int(x) for x in interface_indices.strip('][').split(', ')]
+        if cutsite_ind != None:
+            logger.info("Focus substrate indices are {}".format(','.join([str(u) for u in cutsite_ind])))
+        if interface_ind != None:
+            logger.info("Neighbor residues indices are {}".format(','.join([str(q) for q in interface_ind])))
     else:
         cutsite_ind, interface_ind = [], []
 
@@ -562,8 +628,10 @@ def main(args):
     graphs = []
     for i in range(len(sequences)):
         seq = sequences[i]
+        print(seq)
         if protein_template:
             graph = generate_graph(seq, pr_path, cutsite_ind, interface_ind, params, sfxn, is_silent=args.is_silent)
+            V = graph.V
         else:
             cutsite_ind, interface_ind = get_ind_from_protease(seq, pr_path, index_p1, ub, db, sc, dis, sfxn)
             graph = generate_graph(seq, pr_path, cutsite_ind, interface_ind, params, sfxn, is_silent=args.is_silent)

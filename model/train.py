@@ -52,10 +52,11 @@ parser.add_argument('--dropout', type=float, default=0.1,
 parser.add_argument('--no_energy', action='store_true', default=False)
 parser.add_argument('--energy_only', action='store_true', default=False)
 parser.add_argument('--seq_only', action='store_true', default=False)
-parser.add_argument('--feature',choices=['s+d','s','e','s+e'],default='s+e')
+parser.add_argument('--feature',choices=['d','s+d','s','e','s+e','s+e+d'],default='s+e')
 parser.add_argument('--scale_type', choices = ['exp','minmax'], default='exp')
 parser.add_argument('--test_dataset',type=str, default=None)
 parser.add_argument('--val_dataset', type=str, default=None)
+parser.add_argument('--resampling', type=str, default=None)
 parser.add_argument('--dataset',type=str, help='input dataset string')
 parser.add_argument('--model', type = str, default = 'gcn',choices=['gcn','chebyshev'])
 parser.add_argument('--max_degree',type=int, default = 3, help='number of supports')
@@ -112,14 +113,14 @@ logger.info('Number of parameters: {}'.format(count_parameters(model)))
 
 batch_size = args.batch_size
 
-#criterion = nn.CrossEntropyLoss()
-criterion = nn.NLLLoss()
+criterion = nn.CrossEntropyLoss()
+#criterion = nn.NLLLoss()
 optimizer = optim.Adam(model.parameters(),lr=args.lr, weight_decay=args.weight_decay)
 #optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 nepoch = args.epochs #willbe useless if set earlystop
 #scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, int(nepoch / 10)) 
 #scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, 10000)
-
+resampling = args.resampling
 best_acc = 0
 print("Total number of forward processes:" + str(args.epochs * args.batch_size))
 #patience = 100
@@ -135,13 +136,21 @@ with experiment.train():
         model.train()
         tmp_accs = []
         tmp_losses = []
-        for batch_mask in get_batch_iterator(tmp_mask, batch_size):
+        batch_mask_ls, count_mask_ls = get_batch_iterator(tmp_mask, batch_size, sampling=resampling)
+        for batch_mask, count_mask in zip(batch_mask_ls, count_mask_ls):
             optimizer.zero_grad()
-            #n = n + 1
             x = features[batch_mask]
             y = labels[batch_mask]
-            y = torch.argmax(y,axis=1)
             adj = adj_ls[batch_mask]
+            for i, count in enumerate(count_mask):
+                if count > 1:
+                    while count - 1 > 0:
+                        x = torch.concat([x, features[i,:,:].reshape(1,features.shape[1],-1)])
+                        y = torch.concat([y, labels[i,:].reshape(1, -1)])
+                        adj = torch.concat([adj, adj_ls[i,:,:,:].reshape(1,adj_ls.shape[1], adj_ls.shape[2],-1)])
+                        count -= 1
+            assert x.shape[0] == y.shape[0]
+            y = torch.argmax(y,axis=1)
             logits = model(x, adj)
             loss = criterion(logits,y)
             train_acc = accuracy(logits,y)

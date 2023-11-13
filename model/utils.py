@@ -33,21 +33,44 @@ def sample_mask(idx, l):
     mask[idx] = 1
     return np.array(mask, dtype=np.bool)
     
-def get_batch_iterator(mask, batch_size):
+def get_batch_iterator(mask, batch_size, sampling=None):
     # Batch size iterator, returns list of masks.
     train_indices = [i for (i,boolean) in enumerate(mask) if boolean == True]
+    if sampling is not None:
+        print('resampling training data')
+        filepath = '../graph/classifications/' + sampling
+        train_indices = np.loadtxt(filepath, dtype=int).tolist()
+        #train_indNew = []
+        #for ind in train_subindices:
+        #    if set(train_indices) & ind != set([]):
+        #        train_indNew.append(ind)
+        #train_indices = train_indNew
     np.random.shuffle(train_indices)
-    mask_ls, i = [], 0
+    mask_ls, count_ls, i = [], [], 0
     while i < len(train_indices):
         m = np.zeros(shape=mask.shape, dtype=np.bool)
+        m_count = np.zeros(shape=mask.shape, dtype=int)
         if i + batch_size <= len(train_indices):
             m[train_indices[i:i+batch_size]] = True
+            tmp_dict = {u:0 for u in set(train_indices[i:i+batch_size])}
+            for ind in train_indices[i:i+batch_size]:
+                tmp_dict[ind] += 1
+            for u in tmp_dict.keys():
+                m_count[u] = tmp_dict[u]
             mask_ls.append(m)
+            count_ls.append(m_count)
         else:
             m[train_indices[i:]] = True
+            tmp_dict = {u:0 for u in set(train_indices[i:])}
+            for ind in train_indices[i:]:
+                tmp_dict[ind] += 1
+            for u in tmp_dict.keys():
+                if tmp_dict[u] > 1:
+                    m_count[u] = tmp_dict[u]
             mask_ls.append(m)
+            count_ls.append(m_count)
         i += batch_size
-    return mask_ls
+    return mask_ls, count_ls
 
 #def load_data(dataset_str, is_test=None, norm_type=False, noenergy=False, cv=7):
 #    protease = dataset_str.replace("protease_","")
@@ -185,7 +208,7 @@ def load_input(input_dataset_str, dataname_list, path=None): #input_type: 'train
                 objects.append(pkl.load(f))
     return objects
 
-def load_data(dataset_str, is_test=None, is_val=None, norm_type=True, scale_type='exp', noenergy=False, cv=0, test_format = 'individual', energy_only=False, seq_only=False,  data_path=None):
+def load_data(dataset_str, is_test=None, is_val=None, norm_type=True, scale_type='exp', noenergy=False, cv=0, test_format = 'individual', energy_only=False, seq_only=False,  data_path=None, feature_type='s+e'):
     #test_format only accepts 'index' or 'individual' or None
     cwd = os.getcwd()
     if test_format == 'individual': # this individual set will not be supposed to have y and model has been trained
@@ -193,14 +216,24 @@ def load_data(dataset_str, is_test=None, is_val=None, norm_type=True, scale_type
         test_adj, test_features, test_sequences = tuple(load_input(dataset_str, 
                                                                    names, path=data_path))
         # add normalize here
-        #labelorder = tuple(load_input(dataset_str, ['labelorder']))[0]
-        labelorder = ['CLEAVED','UNCLEAVED']
-        if energy_only==True:
-            test_features = test_features[:,:,20:]
-        elif seq_only==True:
+        labelorder = tuple(load_input(dataset_str, ['labelorder']))[0]
+        #labelorder = ['CLEAVED','UNCLEAVED']
+        if feature_type == 'e': #energy_only==True:
+            test_features = test_features[:,:,20:28]
+            test_adj = test_adj[:,:,:,0:8]
+        #elif feature_type == 'd':
+        #    test_features = np.zeros_like(test_features)
+        elif feature_type == 's': #seq_only==True:
             test_features = test_features[:,:,0:20]
             test_adj = np.zeros_like(test_adj)
-        if noenergy == False:
+        elif feature_type == 's+d':
+            len_feat = test_features.shape[2]
+            test_features = test_features[:,:, 0:20] #np.arange(20).tolist()+np.arange(28,len_feat).tolist()]
+            test_adj = test_adj[:,:,:,8:]
+        elif feature_type == 's+e':
+            test_features = test_features[:,:,0:28]
+            test_adj = test_adj[:,:,:,0:8]
+        if feature_type == 's+e+d' or feature_type == 'e' or feature_type == 's+e': #noenergy == False:
             test_features = transform(test_features, scale_type, ind = '(-8,-1)') # accept all features in this case except the last one
             test_adj = transform(test_adj, 'exp', ind = '(0,6)')
         if norm_type == True:
